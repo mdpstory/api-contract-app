@@ -628,7 +628,7 @@ function ContractRow({
         onClick={() => setDeleteOpen(true)}
         disabled={isDeleting}
         title="Delete"
-        className="h-6 w-6 shrink-0 flex items-center justify-center rounded text-text-muted transition-colors hover:bg-error/10 hover:text-error disabled:opacity-40 opacity-0 group-hover:opacity-100"
+        className="h-6 w-6 shrink-0 flex items-center justify-center rounded text-text-muted/80 transition-colors hover:bg-error/10 hover:text-error disabled:opacity-40"
       >
         <Trash2 size={11} />
       </button>
