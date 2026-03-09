@@ -1,0 +1,2 @@
+ALTER TABLE `contracts`
+ADD `request_body_format` text NOT NULL DEFAULT 'json';
