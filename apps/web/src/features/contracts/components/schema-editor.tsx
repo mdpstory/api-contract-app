@@ -115,12 +115,11 @@ export function SchemaEditor({
     )}>
       {value.fields.length === 0 ? (
         <div className="border border-transparent bg-surface/40 px-4 py-6 text-center">
-          <p className="text-xs font-medium text-text-muted">No fields defined</p>
           {!disabled && (
             <button
               type="button"
               onClick={addField}
-              className="mt-2 font-mono text-xs font-medium text-text-secondary underline transition-all hover:text-text-primary hover:no-underline"
+              className="font-mono text-xs font-medium text-text-secondary underline transition-all hover:text-text-primary hover:no-underline"
             >
               + Add row
             </button>

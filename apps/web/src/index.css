@@ -3,52 +3,52 @@
 
 @theme {
   /* ── Backgrounds ────────────────────────────────────── */
-  --color-base:     #0D1117;
-  --color-surface:  #161B22;
-  --color-elevated: #1C2128;
-  --color-overlay:  #21262D;
-  --color-ink:      #0D1117;
+  --color-base:     #000000;
+  --color-surface:  #0a0a0a;
+  --color-elevated: #111111;
+  --color-overlay:  #171717;
+  --color-ink:      #000000;
 
   /* ── Text ────────────────────────────────────────────── */
-  --color-text-primary:   #E6EDF3;
-  --color-text-secondary: #7D8590;
-  --color-text-muted:     #3D444D;
+  --color-text-primary:   #fafafa;
+  --color-text-secondary: #a1a1aa;
+  --color-text-muted:     #52525b;
 
-  /* ── Accent (purple) ─────────────────────────────────── */
-  --color-accent:       #7C6AF7;
-  --color-accent-hover: #8B7CF8;
-  --color-accent-dim:   rgba(124, 106, 247, 0.12);
+  /* ── Accent (Next.js-inspired neutral) ──────────────── */
+  --color-accent:       #fafafa;
+  --color-accent-hover: #e4e4e7;
+  --color-accent-dim:   rgba(250, 250, 250, 0.10);
 
   /* ── Semantic ────────────────────────────────────────── */
-  --color-success: #3FB950;
-  --color-error:   #F85149;
-  --color-warning: #D29922;
-  --color-info:    #58A6FF;
+  --color-success: #22c55e;
+  --color-error:   #ef4444;
+  --color-warning: #f59e0b;
+  --color-info:    #38bdf8;
 
   /* ── Borders ─────────────────────────────────────────── */
-  --color-border-subtle:  #21262D;
-  --color-border-default: #30363D;
-  --color-border-strong:  #3D444D;
+  --color-border-subtle:  #1f1f23;
+  --color-border-default: #2a2a2e;
+  --color-border-strong:  #3f3f46;
 
   /* ── HTTP Method tokens ──────────────────────────────── */
-  --color-method-get-bg:     rgba(88, 166, 255, 0.08);
-  --color-method-get-border: rgba(88, 166, 255, 0.20);
+  --color-method-get-bg:     rgba(56, 189, 248, 0.10);
+  --color-method-get-border: rgba(56, 189, 248, 0.24);
   --color-method-get-text:   var(--color-info);
 
-  --color-method-post-bg:     rgba(63, 185, 80, 0.08);
-  --color-method-post-border: rgba(63, 185, 80, 0.20);
+  --color-method-post-bg:     rgba(34, 197, 94, 0.10);
+  --color-method-post-border: rgba(34, 197, 94, 0.24);
   --color-method-post-text:   var(--color-success);
 
-  --color-method-put-bg:     rgba(210, 153, 34, 0.08);
-  --color-method-put-border: rgba(210, 153, 34, 0.20);
+  --color-method-put-bg:     rgba(245, 158, 11, 0.10);
+  --color-method-put-border: rgba(245, 158, 11, 0.24);
   --color-method-put-text:   var(--color-warning);
 
-  --color-method-patch-bg:     rgba(124, 106, 247, 0.08);
-  --color-method-patch-border: rgba(124, 106, 247, 0.20);
-  --color-method-patch-text:   var(--color-accent);
+  --color-method-patch-bg:     rgba(250, 250, 250, 0.08);
+  --color-method-patch-border: rgba(250, 250, 250, 0.18);
+  --color-method-patch-text:   #f4f4f5;
 
-  --color-method-delete-bg:     rgba(248, 81, 73, 0.08);
-  --color-method-delete-border: rgba(248, 81, 73, 0.20);
+  --color-method-delete-bg:     rgba(239, 68, 68, 0.10);
+  --color-method-delete-border: rgba(239, 68, 68, 0.24);
   --color-method-delete-text:   var(--color-error);
 
   /* ── Typography ──────────────────────────────────────── */
@@ -80,6 +80,10 @@
     min-height: 100vh;
     line-height: 1.5;
     background-color: var(--color-base);
+    background-image:
+      radial-gradient(circle at top, rgba(255, 255, 255, 0.06), transparent 32%),
+      radial-gradient(circle at 20% 20%, rgba(56, 189, 248, 0.08), transparent 24%),
+      linear-gradient(180deg, #050505 0%, #000000 100%);
   }
 
   code, pre, kbd, samp {
@@ -123,17 +127,17 @@
 
   /* Subtle card elevation */
   .shadow-card {
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.30), 0 1px 2px rgba(0, 0, 0, 0.20);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.40), 0 0 0 1px rgba(255, 255, 255, 0.02);
   }
   .shadow-card-hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.40), 0 2px 4px rgba(0, 0, 0, 0.24);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.03);
   }
 
   /* Legacy aliases – kept so existing class names don't break */
   .shadow-brutal,
   .shadow-brutal-sm,
   .shadow-brutal-lg {
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
   }
 
   /* HTTP method badges */
