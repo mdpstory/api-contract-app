@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+.bun/
+bun.lockb
+
+# Build Outputs
+dist/
+build/
+.next/
+out/
+*.log
+
+# Environment Variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+
+# IDE Settings
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS Metadata
+.DS_Store
+Thumbs.db
+
+# Database / Drizzle
+drizzle/
+!drizzle.config.ts
+*.db
+*.sqlite
+
+# Docker
+.docker/
