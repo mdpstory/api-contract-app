@@ -3,7 +3,6 @@ import {
   Link,
   Outlet,
   useNavigate,
-  useSearch,
 } from "@tanstack/react-router"
 import * as React from "react"
 import {
@@ -19,10 +18,9 @@ import {
 import { useProject } from "@/features/projects/hooks"
 import {
   ALL_GROUP_FILTER,
-  ProjectSidebar,
   type GroupFilter,
   UNGROUPED_GROUP_FILTER,
-} from "@/features/projects/components/project-sidebar"
+} from "@/features/projects/lib/group-filters"
 import {
   useContractGroups,
   useContracts,
@@ -64,16 +62,28 @@ const SELECT_CLS =
   "h-8 rounded border border-border-default bg-elevated px-2.5 text-sm text-text-primary transition-colors focus:border-accent focus:outline-none"
 
 type FilterStatus = "all" | "draft" | "approved"
-type ProjectHomeTab = "endpoints" | "preview-all"
+type ProjectSection = "endpoints" | "preview"
+export interface EndpointListSearch {
+  filter: FilterStatus
+  q: string
+  group: GroupFilter
+}
 const UNGROUPED_DROP_TARGET = UNGROUPED_GROUP_FILTER
 
 function ProjectLayout() {
   return <Outlet />
 }
 
-export function ProjectHomePage({ projectId }: { projectId: string }) {
+export function ProjectSectionPage({
+  projectId,
+  activeSection,
+  searchState,
+}: {
+  projectId: string
+  activeSection: ProjectSection
+  searchState: EndpointListSearch
+}) {
   const navigate = useNavigate()
-  const searchState = useSearch({ from: "/projects/$projectId/" })
   const { data: project } = useProject(projectId)
   const { data: contracts = [], isLoading, isError } = useContracts(projectId)
   const {
@@ -92,16 +102,15 @@ export function ProjectHomePage({ projectId }: { projectId: string }) {
   const { mutate: moveContractGroup, isPending: isMovingContract } = useMoveContractGroup(projectId)
   const { toast } = useToast()
 
-  const activeTab = (searchState.tab ?? "endpoints") as ProjectHomeTab
-  const filter    = (searchState.filter ?? "all") as FilterStatus
-  const search    = searchState.q ?? ""
-  const groupFilter = ((searchState.group as GroupFilter | undefined) ?? ALL_GROUP_FILTER) as GroupFilter
+  const filter = searchState.filter
+  const search = searchState.q
+  const groupFilter = searchState.group
 
-  function updateSearch(
-    patch: Partial<{ tab: ProjectHomeTab; filter: FilterStatus; q: string; group: string }>
+  function updateEndpointSearch(
+    patch: Partial<{ filter: FilterStatus; q: string; group: string }>
   ) {
     void navigate({
-      to: "/projects/$projectId",
+      to: "/projects/$projectId/endpoints",
       params: { projectId },
       replace: true,
       search: { ...searchState, ...patch },
@@ -116,7 +125,7 @@ export function ProjectHomePage({ projectId }: { projectId: string }) {
   // Auto-clear invalid group filter
   React.useEffect(() => {
     if (groupFilter === ALL_GROUP_FILTER || groupFilter === UNGROUPED_DROP_TARGET) return
-    if (!groups.some((g) => g.id === groupFilter)) updateSearch({ group: ALL_GROUP_FILTER })
+    if (!groups.some((g) => g.id === groupFilter)) updateEndpointSearch({ group: ALL_GROUP_FILTER })
   }, [groupFilter, groups])
 
   const statusFiltered = contracts.filter((c) => {
@@ -218,40 +227,43 @@ export function ProjectHomePage({ projectId }: { projectId: string }) {
     clearDragState()
   }
 
-  const endpointSearchParams = { tab: activeTab, filter, q: search, group: groupFilter }
+  const endpointSearchParams = { filter, q: search, group: groupFilter }
 
   return (
     <AppLayout
       mainClassName="p-0"
+      sidebar={{
+        kind: "project",
+        projectId,
+        projectName: project?.name,
+        projectDescription: project?.description,
+        active: "endpoints",
+        endpointSearch: endpointSearchParams,
+        groups,
+        selectedGroup: groupFilter,
+        onSelectGroup: (group) => updateEndpointSearch({ group }),
+        onCreateGroup: () => setCreateGroupOpen(true),
+        totalCount: contracts.length,
+        groupCounts,
+        ungroupedCount,
+      }}
       breadcrumbs={[
         { label: "Projects", href: "/dashboard" },
         { label: project?.name ?? "..." },
       ]}
     >
-      <div className="min-h-[calc(100vh-3rem)] grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <ProjectSidebar
-          projectId={projectId}
-          active="endpoints"
-          groups={groups}
-          selectedGroup={groupFilter}
-          onSelectGroup={(g) => updateSearch({ group: g })}
-          onCreateGroup={() => setCreateGroupOpen(true)}
-          totalCount={contracts.length}
-          groupCounts={groupCounts}
-          ungroupedCount={ungroupedCount}
-        />
-
-        <div className="min-w-0 flex flex-col">
+      <div className="min-h-[calc(100vh-3rem)] flex flex-col">
           {/* Top toolbar */}
           <div className="flex items-center justify-between gap-3 border-b border-border-subtle px-5 py-3">
             {/* Tab switcher */}
             <div className="flex items-center gap-1 bg-overlay rounded p-0.5">
-              <button
-                type="button"
-                onClick={() => updateSearch({ tab: "endpoints" })}
+              <Link
+                to="/projects/$projectId/endpoints"
+                params={{ projectId }}
+                search={endpointSearchParams}
                 className={[
                   "flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors",
-                  activeTab === "endpoints"
+                  activeSection === "endpoints"
                     ? "bg-elevated text-text-primary shadow-card"
                     : "text-text-muted hover:text-text-secondary",
                 ].join(" ")}
@@ -260,24 +272,24 @@ export function ProjectHomePage({ projectId }: { projectId: string }) {
                 {contracts.length > 0 && (
                   <span className="text-[10px] text-text-muted tabular-nums">{contracts.length}</span>
                 )}
-              </button>
-              <button
-                type="button"
-                onClick={() => updateSearch({ tab: "preview-all" })}
+              </Link>
+              <Link
+                to="/projects/$projectId/preview"
+                params={{ projectId }}
                 className={[
                   "flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors",
-                  activeTab === "preview-all"
+                  activeSection === "preview"
                     ? "bg-elevated text-text-primary shadow-card"
                     : "text-text-muted hover:text-text-secondary",
                 ].join(" ")}
               >
                 <Eye size={11} />
                 Preview
-              </button>
+              </Link>
             </div>
 
             {/* Actions */}
-            {activeTab === "endpoints" && (
+            {activeSection === "endpoints" && (
               <Button size="sm" onClick={() => setCreateEndpointOpen(true)}>
                 <Plus size={12} />
                 Add endpoint
@@ -287,7 +299,7 @@ export function ProjectHomePage({ projectId }: { projectId: string }) {
 
           {/* Content */}
           <div className="flex-1 p-5">
-            {activeTab === "endpoints" && (
+            {activeSection === "endpoints" && (
               <div className="space-y-4">
                 {/* Filter + search row */}
                 <div className="flex items-center gap-2 flex-wrap">
@@ -296,7 +308,7 @@ export function ProjectHomePage({ projectId }: { projectId: string }) {
                     {(["all", "draft", "approved"] as FilterStatus[]).map((f) => (
                       <button
                         key={f}
-                        onClick={() => updateSearch({ filter: f })}
+                        onClick={() => updateEndpointSearch({ filter: f })}
                         className={[
                           "rounded px-2.5 py-1 text-[11px] font-medium capitalize transition-colors",
                           filter === f
@@ -316,7 +328,7 @@ export function ProjectHomePage({ projectId }: { projectId: string }) {
                       type="text"
                       placeholder="Search endpoints..."
                       value={search}
-                      onChange={(e) => updateSearch({ q: e.target.value })}
+                        onChange={(e) => updateEndpointSearch({ q: e.target.value })}
                       className="h-8 w-full rounded border border-border-default bg-elevated pl-7 pr-3 text-sm text-text-primary placeholder:text-text-muted transition-colors focus:border-accent focus:outline-none"
                     />
                   </div>
@@ -338,7 +350,7 @@ export function ProjectHomePage({ projectId }: { projectId: string }) {
                     <p className="text-sm text-text-muted">No endpoints match your filter.</p>
                     <button
                       className="mt-2 text-xs text-accent hover:underline"
-                      onClick={() => updateSearch({ filter: "all", q: "" })}
+                        onClick={() => updateEndpointSearch({ filter: "all", q: "" })}
                     >
                       Clear filters
                     </button>
@@ -411,7 +423,7 @@ export function ProjectHomePage({ projectId }: { projectId: string }) {
               </div>
             )}
 
-            {activeTab === "preview-all" && (
+            {activeSection === "preview" && (
               isLoading || isGroupsLoading ? (
                 <ContractListSkeleton />
               ) : isError || isGroupsError ? (
@@ -421,7 +433,6 @@ export function ProjectHomePage({ projectId }: { projectId: string }) {
               )
             )}
           </div>
-        </div>
       </div>
 
       {/* Dialogs */}
@@ -479,7 +490,7 @@ function GroupSection({
   group: ContractGroup
   contracts: Contract[]
   projectId: string
-  endpointSearch: { tab: ProjectHomeTab; filter: FilterStatus; q: string; group: GroupFilter }
+  endpointSearch: EndpointListSearch
   isDropTarget: boolean
   onDragOver: (e: React.DragEvent<HTMLDivElement>) => void
   onDrop: (e: React.DragEvent<HTMLDivElement>) => void
@@ -557,7 +568,7 @@ function ContractRow({
 }: {
   contract: Contract
   projectId: string
-  endpointSearch: { tab: ProjectHomeTab; filter: FilterStatus; q: string; group: GroupFilter }
+  endpointSearch: EndpointListSearch
   isLast: boolean
   isDragging: boolean
   onDragStart: (id: string, e: React.DragEvent<HTMLButtonElement>) => void
@@ -602,7 +613,7 @@ function ContractRow({
         to="/projects/$projectId/contracts/$contractId"
         params={{ projectId, contractId: contract.id }}
         search={{
-          listTab: endpointSearch.tab,
+          listSection: "endpoints",
           listFilter: endpointSearch.filter,
           listQ: endpointSearch.q,
           listGroup: endpointSearch.group,

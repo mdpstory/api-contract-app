@@ -130,7 +130,7 @@ function getSchemaValidationError(schema: ContractSchema, label: string): string
   const seen = new Set<string>()
   const fieldTypes = new Map<string, ContractSchema["fields"][number]["type"]>()
 
-  for (const [i, field] of schema.fields.entries()) {
+  for (const field of schema.fields) {
     const path = field.name.trim()
     if (!path) continue
 

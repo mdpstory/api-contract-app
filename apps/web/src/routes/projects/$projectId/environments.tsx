@@ -3,7 +3,6 @@ import * as React from "react"
 import { Globe, Plus, MoreHorizontal, Pencil, Trash2, Box, AlertTriangle } from "lucide-react"
 import { getOrFetchMe } from "@/features/auth/hooks"
 import { useProject } from "@/features/projects/hooks"
-import { ProjectSidebar } from "@/features/projects/components/project-sidebar"
 import {
   useEnvironments,
   useCreateEnvironment,
@@ -61,16 +60,20 @@ function EnvironmentsPage() {
   return (
     <AppLayout
       mainClassName="p-0"
-      breadcrumbs={[
-        { label: "Projects", href: "/dashboard" },
-        { label: project?.name ?? "...", href: `/projects/${projectId}` },
-        { label: "Environments" },
-      ]}
+      sidebar={{
+        kind: "project",
+        projectId,
+        projectName: project?.name,
+        projectDescription: project?.description,
+        active: "environments",
+      }}
+        breadcrumbs={[
+          { label: "Projects", href: "/dashboard" },
+          { label: project?.name ?? "...", href: `/projects/${projectId}/endpoints` },
+          { label: "Environments" },
+        ]}
     >
-      <div className="min-h-[calc(100vh-3rem)] grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)]">
-        <ProjectSidebar projectId={projectId} active="environments" />
-
-        <div className="min-w-0 max-w-3xl space-y-8 p-5 sm:p-7 lg:p-10">
+      <div className="min-h-[calc(100vh-3rem)] min-w-0 max-w-3xl space-y-8 p-5 sm:p-7 lg:p-10">
           {/* Header */}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-1.5">
@@ -132,7 +135,6 @@ function EnvironmentsPage() {
               {"{{variableName}}"}
             </code>
           </p>
-        </div>
       </div>
 
       {/* Create dialog */}

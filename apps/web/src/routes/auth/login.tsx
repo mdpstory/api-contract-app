@@ -31,7 +31,7 @@ function LoginPage() {
 
   if (sent) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-base">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="w-full max-w-sm text-center space-y-4">
           <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center mx-auto">
             <span className="text-2xl">✉️</span>
@@ -58,7 +58,7 @@ function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-base">
+    <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="w-full max-w-sm space-y-8">
         <div className="space-y-2">
           <h1 className="text-2xl font-bold text-text-primary tracking-tight">

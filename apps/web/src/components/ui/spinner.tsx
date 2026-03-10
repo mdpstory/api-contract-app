@@ -1,24 +1,19 @@
-import { cn } from "@/lib/cn"
+import { cn } from "@/lib/utils"
+import { Loader2Icon } from "lucide-react"
 
-interface SpinnerProps {
-  className?: string
-  size?: "sm" | "md" | "lg"
-}
-
-const sizeMap = {
-  sm: "h-3.5 w-3.5 border-[1.5px]",
-  md: "h-5 w-5 border-2",
-  lg: "h-7 w-7 border-2",
-}
-
-export function Spinner({ className, size = "md" }: SpinnerProps) {
+function Spinner({ className, size, ...props }: React.ComponentProps<"svg"> & { size?: "sm" | "md" | "lg" }) {
   return (
-    <div
+    <Loader2Icon
+      role="status"
+      aria-label="Loading"
       className={cn(
-        "animate-spin rounded-full border-border-default border-t-accent",
-        sizeMap[size],
+        size === "sm" ? "size-3" : size === "lg" ? "size-6" : "size-4",
+        "animate-spin",
         className
       )}
+      {...props}
     />
   )
 }
+
+export { Spinner }

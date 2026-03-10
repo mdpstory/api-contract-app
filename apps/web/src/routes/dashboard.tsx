@@ -1,32 +1,32 @@
-import { createFileRoute, redirect, Link } from "@tanstack/react-router"
-import * as React from "react"
-import { Plus, FolderKanban, Clock, AlertTriangle } from "lucide-react"
-import { useProjects, useCreateProject } from "@/features/projects/hooks"
-import { getOrFetchMe } from "@/features/auth/hooks"
-import { AppLayout } from "@/components/layout/app-layout"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import * as React from "react";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { Plus, FolderKanban, AlertTriangle } from "lucide-react";
+import { useProjects, useCreateProject } from "@/features/projects/hooks";
+import { getOrFetchMe } from "@/features/auth/hooks";
+import { AppLayout } from "@/components/layout/app-layout";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog"
-import { useToast } from "@/lib/toast"
-import { formatRelativeTime } from "@/lib/format"
+} from "@/components/ui/dialog";
+import { useToast } from "@/lib/toast";
+import { ProjectCard } from "@/components/view/project-card";
 
 export const Route = createFileRoute("/dashboard")({
   beforeLoad: async ({ context: { queryClient } }) => {
-    const user = await getOrFetchMe(queryClient)
-    if (!user) throw redirect({ to: "/auth/login" })
+    const user = await getOrFetchMe(queryClient);
+    if (!user) throw redirect({ to: "/auth/login" });
   },
   component: DashboardPage,
-})
+});
 
 function DashboardPage() {
-  const { data: projects = [], isLoading, isError } = useProjects()
-  const [open, setOpen] = React.useState(false)
+  const { data: projects = [], isLoading, isError } = useProjects();
+  const [open, setOpen] = React.useState(false);
 
   return (
     <AppLayout>
@@ -34,7 +34,7 @@ function DashboardPage() {
         {/* Page header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-base font-semibold text-text-primary">Projects</h1>
+            <h1 className="font-semibold text-foreground">Projects</h1>
             <p className="text-xs text-text-muted mt-0.5">
               {projects.length > 0
                 ? `${projects.length} project${projects.length === 1 ? "" : "s"}`
@@ -68,67 +68,30 @@ function DashboardPage() {
         )}
       </div>
     </AppLayout>
-  )
-}
-
-// ─── Project Card ─────────────────────────────────────────────────────────────
-
-function ProjectCard({ project }: { project: { id: string; name: string; description: string | null; createdAt: string } }) {
-  return (
-    <Link
-      to="/projects/$projectId"
-      params={{ projectId: project.id }}
-      search={{ tab: "endpoints", filter: "all", q: "", group: "__all__" }}
-      className="group block rounded-lg border border-border-subtle bg-surface p-4 hover:border-border-default hover:bg-elevated transition-all shadow-card hover:shadow-card-hover"
-    >
-      <div className="flex items-start gap-3">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-border-subtle bg-elevated group-hover:border-border-default transition-colors">
-          <FolderKanban size={14} className="text-text-muted group-hover:text-text-secondary transition-colors" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-medium text-text-primary truncate group-hover:text-accent transition-colors">
-            {project.name}
-          </h3>
-          {project.description ? (
-            <p className="text-xs text-text-muted mt-0.5 line-clamp-2 leading-relaxed">
-              {project.description}
-            </p>
-          ) : (
-            <p className="text-xs text-text-muted mt-0.5 italic">No description</p>
-          )}
-        </div>
-      </div>
-      <div className="flex items-center gap-1 mt-3 pt-3 border-t border-border-subtle">
-        <Clock size={11} className="text-text-muted" />
-        <span className="text-[11px] text-text-muted">
-          {formatRelativeTime(project.createdAt)}
-        </span>
-      </div>
-    </Link>
-  )
+  );
 }
 
 // ─── New Project Dialog ───────────────────────────────────────────────────────
 
 function NewProjectDialog({ onClose }: { onClose: () => void }) {
-  const [name, setName] = React.useState("")
-  const [description, setDescription] = React.useState("")
-  const { mutate: create, isPending } = useCreateProject()
-  const { toast } = useToast()
+  const [name, setName] = React.useState("");
+  const [description, setDescription] = React.useState("");
+  const { mutate: create, isPending } = useCreateProject();
+  const { toast } = useToast();
 
   function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
+    e.preventDefault();
     create(
       { name, description: description || undefined },
       {
         onSuccess: () => {
-          toast({ title: "Project created", variant: "success" })
-          onClose()
+          toast({ title: "Project created", variant: "success" });
+          onClose();
         },
         onError: (err) =>
           toast({ title: "Error", description: err.message, variant: "error" }),
-      }
-    )
+      },
+    );
   }
 
   return (
@@ -138,7 +101,6 @@ function NewProjectDialog({ onClose }: { onClose: () => void }) {
       </DialogHeader>
       <form onSubmit={handleSubmit} className="space-y-3">
         <Input
-          label="Name"
           placeholder="Payment Service"
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -167,7 +129,7 @@ function NewProjectDialog({ onClose }: { onClose: () => void }) {
         </div>
       </form>
     </DialogContent>
-  )
+  );
 }
 
 // ─── Empty State ──────────────────────────────────────────────────────────────
@@ -189,7 +151,7 @@ function EmptyState({ onNew }: { onNew: () => void }) {
         New project
       </Button>
     </div>
-  )
+  );
 }
 
 // ─── Error State ──────────────────────────────────────────────────────────────
@@ -200,7 +162,7 @@ function ErrorState({ message }: { message: string }) {
       <AlertTriangle size={18} className="text-error" />
       <p className="text-sm text-text-secondary">{message}</p>
     </div>
-  )
+  );
 }
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
@@ -215,5 +177,5 @@ function ProjectsGridSkeleton() {
         />
       ))}
     </div>
-  )
+  );
 }

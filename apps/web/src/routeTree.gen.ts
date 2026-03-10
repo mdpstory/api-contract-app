@@ -16,7 +16,9 @@ import { Route as AuthVerifyRouteImport } from './routes/auth/verify'
 import { Route as AuthLoginRouteImport } from './routes/auth/login'
 import { Route as ProjectsProjectIdIndexRouteImport } from './routes/projects/$projectId/index'
 import { Route as ProjectsProjectIdSettingsRouteImport } from './routes/projects/$projectId/settings'
+import { Route as ProjectsProjectIdPreviewRouteImport } from './routes/projects/$projectId/preview'
 import { Route as ProjectsProjectIdEnvironmentsRouteImport } from './routes/projects/$projectId/environments'
+import { Route as ProjectsProjectIdEndpointsRouteImport } from './routes/projects/$projectId/endpoints'
 import { Route as ProjectsProjectIdContractsContractIdRouteImport } from './routes/projects/$projectId/contracts/$contractId'
 
 const DashboardRoute = DashboardRouteImport.update({
@@ -55,10 +57,22 @@ const ProjectsProjectIdSettingsRoute =
     path: '/settings',
     getParentRoute: () => ProjectsProjectIdRoute,
   } as any)
+const ProjectsProjectIdPreviewRoute =
+  ProjectsProjectIdPreviewRouteImport.update({
+    id: '/preview',
+    path: '/preview',
+    getParentRoute: () => ProjectsProjectIdRoute,
+  } as any)
 const ProjectsProjectIdEnvironmentsRoute =
   ProjectsProjectIdEnvironmentsRouteImport.update({
     id: '/environments',
     path: '/environments',
+    getParentRoute: () => ProjectsProjectIdRoute,
+  } as any)
+const ProjectsProjectIdEndpointsRoute =
+  ProjectsProjectIdEndpointsRouteImport.update({
+    id: '/endpoints',
+    path: '/endpoints',
     getParentRoute: () => ProjectsProjectIdRoute,
   } as any)
 const ProjectsProjectIdContractsContractIdRoute =
@@ -74,7 +88,9 @@ export interface FileRoutesByFullPath {
   '/auth/login': typeof AuthLoginRoute
   '/auth/verify': typeof AuthVerifyRoute
   '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
+  '/projects/$projectId/endpoints': typeof ProjectsProjectIdEndpointsRoute
   '/projects/$projectId/environments': typeof ProjectsProjectIdEnvironmentsRoute
+  '/projects/$projectId/preview': typeof ProjectsProjectIdPreviewRoute
   '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
   '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
   '/projects/$projectId/contracts/$contractId': typeof ProjectsProjectIdContractsContractIdRoute
@@ -84,7 +100,9 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/verify': typeof AuthVerifyRoute
+  '/projects/$projectId/endpoints': typeof ProjectsProjectIdEndpointsRoute
   '/projects/$projectId/environments': typeof ProjectsProjectIdEnvironmentsRoute
+  '/projects/$projectId/preview': typeof ProjectsProjectIdPreviewRoute
   '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
   '/projects/$projectId': typeof ProjectsProjectIdIndexRoute
   '/projects/$projectId/contracts/$contractId': typeof ProjectsProjectIdContractsContractIdRoute
@@ -96,7 +114,9 @@ export interface FileRoutesById {
   '/auth/login': typeof AuthLoginRoute
   '/auth/verify': typeof AuthVerifyRoute
   '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
+  '/projects/$projectId/endpoints': typeof ProjectsProjectIdEndpointsRoute
   '/projects/$projectId/environments': typeof ProjectsProjectIdEnvironmentsRoute
+  '/projects/$projectId/preview': typeof ProjectsProjectIdPreviewRoute
   '/projects/$projectId/settings': typeof ProjectsProjectIdSettingsRoute
   '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
   '/projects/$projectId/contracts/$contractId': typeof ProjectsProjectIdContractsContractIdRoute
@@ -109,7 +129,9 @@ export interface FileRouteTypes {
     | '/auth/login'
     | '/auth/verify'
     | '/projects/$projectId'
+    | '/projects/$projectId/endpoints'
     | '/projects/$projectId/environments'
+    | '/projects/$projectId/preview'
     | '/projects/$projectId/settings'
     | '/projects/$projectId/'
     | '/projects/$projectId/contracts/$contractId'
@@ -119,7 +141,9 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/auth/login'
     | '/auth/verify'
+    | '/projects/$projectId/endpoints'
     | '/projects/$projectId/environments'
+    | '/projects/$projectId/preview'
     | '/projects/$projectId/settings'
     | '/projects/$projectId'
     | '/projects/$projectId/contracts/$contractId'
@@ -130,7 +154,9 @@ export interface FileRouteTypes {
     | '/auth/login'
     | '/auth/verify'
     | '/projects/$projectId'
+    | '/projects/$projectId/endpoints'
     | '/projects/$projectId/environments'
+    | '/projects/$projectId/preview'
     | '/projects/$projectId/settings'
     | '/projects/$projectId/'
     | '/projects/$projectId/contracts/$contractId'
@@ -195,11 +221,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsProjectIdSettingsRouteImport
       parentRoute: typeof ProjectsProjectIdRoute
     }
+    '/projects/$projectId/preview': {
+      id: '/projects/$projectId/preview'
+      path: '/preview'
+      fullPath: '/projects/$projectId/preview'
+      preLoaderRoute: typeof ProjectsProjectIdPreviewRouteImport
+      parentRoute: typeof ProjectsProjectIdRoute
+    }
     '/projects/$projectId/environments': {
       id: '/projects/$projectId/environments'
       path: '/environments'
       fullPath: '/projects/$projectId/environments'
       preLoaderRoute: typeof ProjectsProjectIdEnvironmentsRouteImport
+      parentRoute: typeof ProjectsProjectIdRoute
+    }
+    '/projects/$projectId/endpoints': {
+      id: '/projects/$projectId/endpoints'
+      path: '/endpoints'
+      fullPath: '/projects/$projectId/endpoints'
+      preLoaderRoute: typeof ProjectsProjectIdEndpointsRouteImport
       parentRoute: typeof ProjectsProjectIdRoute
     }
     '/projects/$projectId/contracts/$contractId': {
@@ -213,14 +253,18 @@ declare module '@tanstack/react-router' {
 }
 
 interface ProjectsProjectIdRouteChildren {
+  ProjectsProjectIdEndpointsRoute: typeof ProjectsProjectIdEndpointsRoute
   ProjectsProjectIdEnvironmentsRoute: typeof ProjectsProjectIdEnvironmentsRoute
+  ProjectsProjectIdPreviewRoute: typeof ProjectsProjectIdPreviewRoute
   ProjectsProjectIdSettingsRoute: typeof ProjectsProjectIdSettingsRoute
   ProjectsProjectIdIndexRoute: typeof ProjectsProjectIdIndexRoute
   ProjectsProjectIdContractsContractIdRoute: typeof ProjectsProjectIdContractsContractIdRoute
 }
 
 const ProjectsProjectIdRouteChildren: ProjectsProjectIdRouteChildren = {
+  ProjectsProjectIdEndpointsRoute: ProjectsProjectIdEndpointsRoute,
   ProjectsProjectIdEnvironmentsRoute: ProjectsProjectIdEnvironmentsRoute,
+  ProjectsProjectIdPreviewRoute: ProjectsProjectIdPreviewRoute,
   ProjectsProjectIdSettingsRoute: ProjectsProjectIdSettingsRoute,
   ProjectsProjectIdIndexRoute: ProjectsProjectIdIndexRoute,
   ProjectsProjectIdContractsContractIdRoute:

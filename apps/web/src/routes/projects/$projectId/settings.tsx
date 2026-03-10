@@ -2,7 +2,6 @@ import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router"
 import * as React from "react"
 import { UserMinus, AlertTriangle, Trash2 } from "lucide-react"
 import { getOrFetchMe, useMe } from "@/features/auth/hooks"
-import { ProjectSidebar } from "@/features/projects/components/project-sidebar"
 import {
   useProject,
   useUpdateProject,
@@ -139,16 +138,20 @@ function ProjectSettingsPage() {
   return (
     <AppLayout
       mainClassName="p-0"
-      breadcrumbs={[
-        { label: "Projects", href: "/dashboard" },
-        { label: project?.name ?? "...", href: `/projects/${projectId}` },
-        { label: "Settings" },
-      ]}
+      sidebar={{
+        kind: "project",
+        projectId,
+        projectName: project?.name,
+        projectDescription: project?.description,
+        active: "settings",
+      }}
+        breadcrumbs={[
+          { label: "Projects", href: "/dashboard" },
+          { label: project?.name ?? "...", href: `/projects/${projectId}/endpoints` },
+          { label: "Settings" },
+        ]}
     >
-      <div className="min-h-[calc(100vh-3rem)] grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)]">
-        <ProjectSidebar projectId={projectId} active="settings" />
-
-        <div className="min-w-0 max-w-2xl space-y-8 p-5 sm:p-7 lg:p-10">
+      <div className="min-h-[calc(100vh-3rem)] min-w-0 max-w-2xl space-y-8 p-5 sm:p-7 lg:p-10">
           <div className="space-y-1.5">
             <h1 className="text-2xl font-semibold tracking-tight text-text-primary sm:text-3xl">Settings</h1>
             <p className="text-sm text-text-secondary">
@@ -326,8 +329,6 @@ function ProjectSettingsPage() {
               </p>
             )}
           </section>
-        </div>
-
         <Dialog
           open={deleteOpen}
           onOpenChange={(open) => {

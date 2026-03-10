@@ -44,7 +44,7 @@ function VerifyPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-base">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="w-full max-w-sm space-y-4 rounded-lg border border-border-subtle bg-surface p-8 text-center shadow-brutal-lg">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-md border border-error/20 bg-error/10">
             <span className="text-xl text-error">✕</span>
@@ -65,7 +65,7 @@ function VerifyPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-base">
+    <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="flex flex-col items-center gap-4 rounded-lg border border-border-subtle bg-surface px-8 py-10 shadow-brutal-lg">
         <Spinner size="lg" />
         <p className="text-sm text-text-secondary">Signing you in...</p>

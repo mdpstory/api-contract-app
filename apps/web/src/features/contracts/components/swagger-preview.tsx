@@ -91,7 +91,7 @@ function buildCurlSnippet({
     .filter((field) => field.type !== "object" && field.type !== "file")
     .map((field) => {
       const sampleValue = schemaToExample({ fields: [field] })[field.name]
-      return [field.name, String(sampleValue)] as const
+      return [field.name, String(sampleValue)]
     })
   const queryString = queryEntries.length > 0
     ? `?${new URLSearchParams(queryEntries).toString()}`

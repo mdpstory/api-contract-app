@@ -3,7 +3,6 @@ import * as React from "react"
 import { Save, Trash2, Download, CheckCircle, Clock, AlertTriangle, ArrowLeft } from "lucide-react"
 import { getOrFetchMe } from "@/features/auth/hooks"
 import { useProject } from "@/features/projects/hooks"
-import { ProjectSidebar } from "@/features/projects/components/project-sidebar"
 import {
   useContract,
   useContractGroups,
@@ -43,7 +42,7 @@ export const Route = createFileRoute(
       search.definitionTab === "request" || search.definitionTab === "query" || search.definitionTab === "response" || search.definitionTab === "preview"
         ? search.definitionTab
         : "query",
-    listTab: search.listTab === "preview-all" ? "preview-all" : "endpoints",
+    listSection: search.listSection === "preview" ? "preview" : "endpoints",
     listFilter:
       search.listFilter === "draft" || search.listFilter === "approved"
         ? search.listFilter
@@ -185,12 +184,23 @@ function ContractEditor({ contract, projectId }: { contract: Contract; projectId
   const activeTab           = searchState.tab ?? "definition"
   const activeDefinitionTab = searchState.definitionTab ?? "query"
 
-  const backSearch = {
-    tab:    searchState.listTab === "preview-all" ? "preview-all" : "endpoints",
+  const backSection = searchState.listSection === "preview" ? "preview" : "endpoints"
+  const endpointBackSearch = {
     filter: searchState.listFilter === "draft" || searchState.listFilter === "approved" ? searchState.listFilter : "all",
     q:      searchState.listQ ?? "",
     group:  searchState.listGroup ?? "__all__",
   } as const
+
+  const backNavigation = backSection === "preview"
+    ? {
+        to: "/projects/$projectId/preview" as const,
+        params: { projectId },
+      }
+    : {
+        to: "/projects/$projectId/endpoints" as const,
+        params: { projectId },
+        search: endpointBackSearch,
+      }
 
   function updateSearch(patch: Partial<{ tab: "definition" | "history" | "validate"; definitionTab: "request" | "query" | "response" | "preview" }>) {
     void navigate({
@@ -301,11 +311,7 @@ function ContractEditor({ contract, projectId }: { contract: Contract; projectId
       onSuccess: () => {
         setDeleteOpen(false)
         toast({ title: "Endpoint deleted", variant: "success" })
-        void navigate({
-          to: "/projects/$projectId",
-          params: { projectId },
-          search: backSearch,
-        })
+        void navigate(backNavigation)
       },
       onError: (err) => toast({ title: "Delete failed", description: err.message, variant: "error" }),
     })
@@ -320,28 +326,27 @@ function ContractEditor({ contract, projectId }: { contract: Contract; projectId
   return (
     <AppLayout
       mainClassName="p-0"
+      sidebar={{
+        kind: "project",
+        projectId,
+        projectName: project?.name,
+        projectDescription: project?.description,
+        active: "endpoints",
+        endpointSearch: endpointBackSearch,
+      }}
       breadcrumbs={[
-        { label: project?.name ?? "...", href: `/projects/${projectId}` },
+        { label: project?.name ?? "...", href: `/projects/${projectId}/${backSection}` },
         { label: groupName },
         { label: `${contract.method} ${contract.path}` },
       ]}
     >
-      <div className="min-h-[calc(100vh-3rem)] grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <ProjectSidebar
-          projectId={projectId}
-          active="endpoints"
-          endpointSearch={backSearch}
-        />
-
-        <div className="min-w-0 flex flex-col">
+      <div className="min-h-[calc(100vh-3rem)] min-w-0 flex flex-col">
           {/* Sticky top bar */}
           <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle bg-surface px-5 py-2.5 font-mono">
             {/* Left: back + identity */}
             <div className="flex items-center gap-3 min-w-0">
               <Link
-                to="/projects/$projectId"
-                params={{ projectId }}
-                search={backSearch}
+                {...backNavigation}
                 className="flex shrink-0 items-center gap-1 text-xs text-text-muted transition-colors hover:text-text-secondary"
               >
                 <ArrowLeft size={12} />
@@ -561,7 +566,6 @@ function ContractEditor({ contract, projectId }: { contract: Contract; projectId
               </TabsContent>
             </Tabs>
           </div>
-        </div>
       </div>
 
       {/* Delete dialog */}
