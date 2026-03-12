@@ -5,9 +5,8 @@ import { TanStackRouterVite } from "@tanstack/router-plugin/vite"
 import path from "path"
 
 export default defineConfig(({ mode }) => {
-  // Load .env from this directory so API_PORT is available at config time
-  const env = loadEnv(mode, __dirname, "")
-  const apiPort = env["API_PORT"] ?? "3030"
+  const env = loadEnv(mode, path.resolve(__dirname, "../.."), "")
+  const apiPort = env["VITE_API_PORT"] ?? env["PORT"] ?? "3030"
 
   return {
     plugins: [

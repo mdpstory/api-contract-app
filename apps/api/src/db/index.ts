@@ -1,6 +1,9 @@
 import { drizzle } from "drizzle-orm/postgres-js"
 import postgres from "postgres"
+import { loadRootEnv } from "../lib/load-env"
 import * as schema from "./schema"
+
+loadRootEnv()
 
 const databaseUrl = process.env["DATABASE_URL"]
 

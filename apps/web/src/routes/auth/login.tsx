@@ -96,7 +96,7 @@ function LoginPage() {
           <p className="text-xs text-text-muted text-center border border-border-subtle rounded-md px-3 py-2">
             <span className="font-medium text-text-secondary">Dev tip:</span> Leave{" "}
             <code className="font-mono">RESEND_API_KEY</code> empty in{" "}
-            <code className="font-mono">apps/api/.env</code> to print magic links to the API terminal instead of sending email.
+            <code className="font-mono">.env</code> to print magic links to the API terminal instead of sending email.
           </p>
         )}
       </div>

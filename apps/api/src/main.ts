@@ -1,6 +1,7 @@
 import { Hono } from "hono"
 import { logger } from "hono/logger"
 import { corsMiddleware } from "./middleware/cors"
+import { loadRootEnv } from "./lib/load-env"
 import { authRoutes } from "./routes/auth"
 import { projectRoutes } from "./routes/projects"
 import { contractRoutes } from "./routes/contracts"
@@ -8,10 +9,7 @@ import { environmentRoutes } from "./routes/environments"
 import { contractGroupRoutes } from "./routes/contract-groups"
 import { validationRoutes } from "./routes/validation"
 import { exportRoutes } from "./routes/export"
-import { mkdirSync } from "fs"
-
-// Ensure data directory exists for SQLite
-mkdirSync("data", { recursive: true })
+loadRootEnv()
 
 const app = new Hono()
 
