@@ -40,7 +40,7 @@ async function assertMembership(
         eq(projectMembers.userId, userId)
       )
     )
-    .get()
+    .then((rows) => rows[0] ?? null)
   return !!row
 }
 
@@ -49,7 +49,7 @@ async function getEnvironmentWithVariables(envId: string) {
     .select()
     .from(environments)
     .where(eq(environments.id, envId))
-    .get()
+    .then((rows) => rows[0] ?? null)
 
   if (!env) return null
 
@@ -105,7 +105,7 @@ async function hasEnvironmentNameConflict(
           )
         : and(eq(environments.projectId, projectId), eq(environments.name, name))
     )
-    .get()
+    .then((rows) => rows[0] ?? null)
 
   return !!conflict
 }
@@ -223,7 +223,7 @@ export const environmentRoutes = new Hono<AuthEnv>()
             eq(environments.projectId, projectId)
           )
         )
-        .get()
+        .then((rows) => rows[0] ?? null)
 
       if (!env) return c.json({ error: "Environment not found" }, 404)
 
@@ -294,7 +294,7 @@ export const environmentRoutes = new Hono<AuthEnv>()
       .where(
         and(eq(environments.id, envId), eq(environments.projectId, projectId))
       )
-      .get()
+      .then((rows) => rows[0] ?? null)
 
     if (!env) return c.json({ error: "Environment not found" }, 404)
 

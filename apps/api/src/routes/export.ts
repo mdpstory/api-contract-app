@@ -156,7 +156,7 @@ export const exportRoutes = new Hono<AuthEnv>()
             eq(projectMembers.userId, user.id)
           )
         )
-        .get()
+        .then((rows) => rows[0] ?? null)
 
       if (!membership) return c.json({ error: "Project not found" }, 404)
 
@@ -169,7 +169,7 @@ export const exportRoutes = new Hono<AuthEnv>()
             eq(contracts.projectId, projectId)
           )
         )
-        .get()
+        .then((rows) => rows[0] ?? null)
 
       if (!contract) return c.json({ error: "Contract not found" }, 404)
 

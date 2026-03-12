@@ -1,11 +1,17 @@
 import { Hono } from "hono"
 import { zValidator } from "@hono/zod-validator"
 import { z } from "zod"
-import { db, sqlite } from "../db"
+import { db } from "../db"
 import { magicLinks, users } from "../db/schema"
-import { eq } from "drizzle-orm"
+import { and, eq, isNull } from "drizzle-orm"
+import {
+  createSession,
+  deleteSession,
+  getCurrentSessionUserId,
+  getCurrentUser,
+  setSessionCookieHeader,
+} from "../lib/auth"
 import { generateId } from "../lib/id"
-import { createSession, deleteSession, getCurrentUser } from "../lib/auth"
 import { sendMagicLinkEmail } from "../lib/email"
 
 // Magic link expires in 15 minutes
@@ -30,7 +36,7 @@ export const authRoutes = new Hono()
         .select()
         .from(users)
         .where(eq(users.email, normalizedEmail))
-        .get()
+        .then((rows) => rows[0] ?? null)
 
       if (!user) {
         const newUser = {
@@ -49,7 +55,7 @@ export const authRoutes = new Hono()
           .select()
           .from(users)
           .where(eq(users.email, normalizedEmail))
-          .get()
+          .then((rows) => rows[0] ?? null)
       }
 
       if (!user) {
@@ -121,7 +127,7 @@ export const authRoutes = new Hono()
       .select()
       .from(magicLinks)
       .where(eq(magicLinks.token, token))
-      .get()
+      .then((rows) => rows[0] ?? null)
 
     if (!link) {
       return c.json({ error: "Invalid or expired token" }, 400)
@@ -132,48 +138,39 @@ export const authRoutes = new Hono()
       return c.json({ error: "This link has expired. Please request a new one." }, 400)
     }
 
-    // Token already used — check if there is still a valid session for this user
-    // This handles React StrictMode double-invoke and browser back/refresh edge cases
-    if (link.usedAt) {
-      const existingSession = await db.query.sessions.findFirst({
-        where: (s, { and, eq, gt }) =>
-          and(eq(s.userId, link.userId), gt(s.expiresAt, now)),
-      })
+      // Token already used — allow idempotent verify if current browser already has auth cookie.
+      if (link.usedAt) {
+        const sessionUserId = await getCurrentSessionUserId(c)
 
-      if (existingSession) {
-        // Session still valid — re-set the cookie so browser has it and return user
-        const user = await db
-          .select()
-          .from(users)
-          .where(eq(users.id, link.userId))
-          .get()
-        // Re-issue cookie with existing session id (idempotent)
-        const { setSessionCookieHeader } = await import("../lib/auth")
-        setSessionCookieHeader(c, existingSession.id)
-        return c.json({ user })
-      }
+        if (sessionUserId === link.userId) {
+          const user = await db
+            .select()
+            .from(users)
+            .where(eq(users.id, link.userId))
+            .then((rows) => rows[0] ?? null)
+          await setSessionCookieHeader(c, link.userId)
+          return c.json({ user })
+        }
 
       return c.json({ error: "This link has already been used. Please request a new one." }, 400)
     }
 
-    const markUsedResult = sqlite
-      .query("UPDATE magic_links SET used_at = ?1 WHERE id = ?2 AND used_at IS NULL")
-      .run(now, link.id) as { changes?: number }
+    const markUsedResult = await db
+      .update(magicLinks)
+      .set({ usedAt: now })
+      .where(and(eq(magicLinks.id, link.id), isNull(magicLinks.usedAt)))
+      .returning({ id: magicLinks.id })
 
-    if ((markUsedResult.changes ?? 0) === 0) {
-      const existingSession = await db.query.sessions.findFirst({
-        where: (s, { and, eq, gt }) =>
-          and(eq(s.userId, link.userId), gt(s.expiresAt, now)),
-      })
+    if (markUsedResult.length === 0) {
+      const sessionUserId = await getCurrentSessionUserId(c)
 
-      if (existingSession) {
+      if (sessionUserId === link.userId) {
         const user = await db
           .select()
           .from(users)
           .where(eq(users.id, link.userId))
-          .get()
-        const { setSessionCookieHeader } = await import("../lib/auth")
-        setSessionCookieHeader(c, existingSession.id)
+          .then((rows) => rows[0] ?? null)
+        await setSessionCookieHeader(c, link.userId)
         return c.json({ user })
       }
 
@@ -181,28 +178,21 @@ export const authRoutes = new Hono()
     }
 
     // Create new session
-    const sessionId = generateId()
-    await createSession(c, link.userId, sessionId)
+    await createSession(c, link.userId)
 
     // Return user
     const user = await db
       .select()
       .from(users)
       .where(eq(users.id, link.userId))
-      .get()
+      .then((rows) => rows[0] ?? null)
 
     return c.json({ user })
   })
 
   // POST /auth/logout
   .post("/logout", async (c) => {
-    const cookieHeader = c.req.header("cookie") ?? ""
-    const match = cookieHeader.match(/session=([^;]+)/)
-    const sessionId = match?.[1]
-
-    if (sessionId) {
-      await deleteSession(c, sessionId)
-    }
+    await deleteSession(c)
 
     return c.json({ message: "Logged out" })
   })

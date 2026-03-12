@@ -43,7 +43,7 @@ async function assertMembership(
         eq(projectMembers.userId, userId)
       )
     )
-    .get()
+    .then((rows) => rows[0] ?? null)
 
   return !!membership
 }
@@ -53,7 +53,7 @@ async function getProjectContract(projectId: string, contractId: string) {
     .select()
     .from(contracts)
     .where(and(eq(contracts.id, contractId), eq(contracts.projectId, projectId)))
-    .get()
+    .then((rows) => rows[0] ?? null)
 }
 
 function isPrivateHostname(hostname: string): boolean {
@@ -286,7 +286,7 @@ export const validationRoutes = new Hono<AuthEnv>()
               eq(environments.projectId, projectId)
             )
           )
-          .get()
+          .then((rows) => rows[0] ?? null)
 
         if (!env) {
           return c.json({ error: "Environment not found" }, 404)
@@ -312,7 +312,7 @@ export const validationRoutes = new Hono<AuthEnv>()
             eq(environments.isGlobal, true)
           )
         )
-        .get()
+        .then((rows) => rows[0] ?? null)
 
       if (globalEnv) {
         const globalVars = await db

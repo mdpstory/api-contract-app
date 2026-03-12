@@ -79,7 +79,7 @@ async function assertMembership(
         eq(projectMembers.userId, userId)
       )
     )
-    .get()
+    .then((rows) => rows[0] ?? null)
   return !!row
 }
 
@@ -96,7 +96,7 @@ async function assertGroupBelongsToProject(
         eq(contractGroups.projectId, projectId)
       )
     )
-    .get()
+    .then((rows) => rows[0] ?? null)
   return !!row
 }
 
@@ -123,7 +123,7 @@ async function findDuplicateContract(
             eq(contracts.path, path)
           )
     )
-    .get()
+    .then((rows) => rows[0] ?? null)
 }
 
 function getSchemaValidationError(schema: ContractSchema, label: string): string | null {
@@ -203,7 +203,7 @@ async function insertContractVersionWithRetry(
       .where(eq(contractVersions.contractId, contractId))
       .orderBy(desc(contractVersions.version))
       .limit(1)
-      .get()
+      .then((rows) => rows[0] ?? null)
 
     try {
       await tx.insert(contractVersions).values({
@@ -347,7 +347,7 @@ export const contractRoutes = new Hono<AuthEnv>()
           .select()
           .from(contracts)
           .where(eq(contracts.id, contractId))
-          .get()
+          .then((rows) => rows[0] ?? null)
 
         if (!createdRow) {
           throw new Error("Failed to create contract")
@@ -368,7 +368,7 @@ export const contractRoutes = new Hono<AuthEnv>()
         .select()
         .from(contracts)
         .where(eq(contracts.id, contractId))
-        .get()
+        .then((rows) => rows[0] ?? null)
 
       if (!row) return c.json({ error: "Failed to create contract" }, 500)
 
@@ -391,7 +391,7 @@ export const contractRoutes = new Hono<AuthEnv>()
       .where(
         and(eq(contracts.id, contractId), eq(contracts.projectId, projectId))
       )
-      .get()
+      .then((rows) => rows[0] ?? null)
 
     if (!row) return c.json({ error: "Contract not found" }, 404)
 
@@ -417,7 +417,7 @@ export const contractRoutes = new Hono<AuthEnv>()
         .where(
           and(eq(contracts.id, contractId), eq(contracts.projectId, projectId))
         )
-        .get()
+        .then((rows) => rows[0] ?? null)
 
       if (!existing) return c.json({ error: "Contract not found" }, 404)
 
@@ -472,7 +472,7 @@ export const contractRoutes = new Hono<AuthEnv>()
       const before = rowToContract(existing)
       const updatedAt = new Date().toISOString()
 
-      let updatedRow: typeof contracts.$inferSelect | undefined
+      let updatedRow: typeof contracts.$inferSelect | null | undefined
 
       await db.transaction(async (tx) => {
         await tx
@@ -502,7 +502,7 @@ export const contractRoutes = new Hono<AuthEnv>()
           .select()
           .from(contracts)
           .where(eq(contracts.id, contractId))
-          .get()
+          .then((rows) => rows[0] ?? null)
 
         if (!updatedRow) {
           throw new Error("Failed to update")
@@ -552,7 +552,7 @@ export const contractRoutes = new Hono<AuthEnv>()
         .where(
           and(eq(contracts.id, contractId), eq(contracts.projectId, projectId))
         )
-        .get()
+        .then((rows) => rows[0] ?? null)
 
       if (!existing) return c.json({ error: "Contract not found" }, 404)
 
@@ -561,7 +561,7 @@ export const contractRoutes = new Hono<AuthEnv>()
       }
 
       const before = rowToContract(existing)
-      let updatedRow: typeof contracts.$inferSelect | undefined
+      let updatedRow: typeof contracts.$inferSelect | null | undefined
 
       await db.transaction(async (tx) => {
         await tx
@@ -573,7 +573,7 @@ export const contractRoutes = new Hono<AuthEnv>()
           .select()
           .from(contracts)
           .where(eq(contracts.id, contractId))
-          .get()
+          .then((rows) => rows[0] ?? null)
 
         if (!updatedRow) {
           throw new Error("Failed to update contract status")
@@ -615,7 +615,7 @@ export const contractRoutes = new Hono<AuthEnv>()
       .where(
         and(eq(contracts.id, contractId), eq(contracts.projectId, projectId))
       )
-      .get()
+      .then((rows) => rows[0] ?? null)
 
     if (!existing) return c.json({ error: "Contract not found" }, 404)
 
@@ -641,7 +641,7 @@ export const contractRoutes = new Hono<AuthEnv>()
         .where(
           and(eq(contracts.id, contractId), eq(contracts.projectId, projectId))
         )
-        .get()
+        .then((rows) => rows[0] ?? null)
 
       if (!contract) {
         return c.json({ error: "Contract not found" }, 404)
@@ -695,7 +695,7 @@ export const contractRoutes = new Hono<AuthEnv>()
         .where(
           and(eq(contracts.id, contractId), eq(contracts.projectId, projectId))
         )
-        .get()
+        .then((rows) => rows[0] ?? null)
 
       if (!contract) {
         return c.json({ error: "Contract not found" }, 404)
@@ -725,7 +725,7 @@ export const contractRoutes = new Hono<AuthEnv>()
             eq(contractVersions.contractId, contractId)
           )
         )
-        .get()
+        .then((rows) => rows[0] ?? null)
 
       if (!version) return c.json({ error: "Version not found" }, 404)
 

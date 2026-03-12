@@ -8,12 +8,10 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3001
-      - DATABASE_PATH=/data/app.db
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL is required}
       - WEB_URL=${WEB_URL:-http://localhost:5173}
       - RESEND_API_KEY=${RESEND_API_KEY:-}
       - EMAIL_FROM=${EMAIL_FROM:-noreply@yourdomain.com}
-    volumes:
-      - api-data:/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
@@ -31,6 +29,3 @@ services:
       api:
         condition: service_healthy
     restart: unless-stopped
-
-volumes:
-  api-data:

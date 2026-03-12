@@ -1,14 +1,18 @@
-import { drizzle } from "drizzle-orm/bun-sqlite"
-import { Database } from "bun:sqlite"
+import { drizzle } from "drizzle-orm/postgres-js"
+import postgres from "postgres"
 import * as schema from "./schema"
 
-const sqlite = new Database(process.env["DATABASE_PATH"] ?? "data/app.db")
+const databaseUrl = process.env["DATABASE_URL"]
 
-// Enable WAL mode for better concurrent read performance
-sqlite.exec("PRAGMA journal_mode = WAL;")
-sqlite.exec("PRAGMA foreign_keys = ON;")
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL is required")
+}
 
-export const db = drizzle(sqlite, { schema })
-export { sqlite }
+const client = postgres(databaseUrl, {
+  prepare: false,
+})
+
+export const db = drizzle(client, { schema })
+export { client }
 
 export type DB = typeof db

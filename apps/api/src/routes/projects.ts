@@ -83,7 +83,7 @@ export const projectRoutes = new Hono<AuthEnv>()
       .select()
       .from(projects)
       .where(eq(projects.id, projectId))
-      .get()
+      .then((rows) => rows[0] ?? null)
 
     return c.json(project, 201)
   })
@@ -102,7 +102,7 @@ export const projectRoutes = new Hono<AuthEnv>()
           eq(projectMembers.userId, user.id)
         )
       )
-      .get()
+      .then((rows) => rows[0] ?? null)
 
     if (!membership) {
       return c.json({ error: "Project not found" }, 404)
@@ -112,7 +112,7 @@ export const projectRoutes = new Hono<AuthEnv>()
       .select()
       .from(projects)
       .where(eq(projects.id, projectId))
-      .get()
+      .then((rows) => rows[0] ?? null)
 
     return c.json(project)
   })
@@ -132,7 +132,7 @@ export const projectRoutes = new Hono<AuthEnv>()
           eq(projectMembers.userId, user.id)
         )
       )
-      .get()
+      .then((rows) => rows[0] ?? null)
 
     if (!membership || membership.role !== "owner") {
       return c.json({ error: "Forbidden" }, 403)
@@ -150,7 +150,7 @@ export const projectRoutes = new Hono<AuthEnv>()
       .select()
       .from(projects)
       .where(eq(projects.id, projectId))
-      .get()
+      .then((rows) => rows[0] ?? null)
 
     return c.json(project)
   })
@@ -170,7 +170,7 @@ export const projectRoutes = new Hono<AuthEnv>()
           eq(projectMembers.userId, user.id)
         )
       )
-      .get()
+      .then((rows) => rows[0] ?? null)
 
     if (!membership || membership.role !== "owner") {
       return c.json({ error: "Forbidden" }, 403)
@@ -180,7 +180,7 @@ export const projectRoutes = new Hono<AuthEnv>()
       .select()
       .from(projects)
       .where(eq(projects.id, projectId))
-      .get()
+      .then((rows) => rows[0] ?? null)
 
     if (!project) {
       return c.json({ error: "Project not found" }, 404)
@@ -209,7 +209,7 @@ export const projectRoutes = new Hono<AuthEnv>()
           eq(projectMembers.userId, user.id)
         )
       )
-      .get()
+      .then((rows) => rows[0] ?? null)
 
     if (!membership) {
       return c.json({ error: "Project not found" }, 404)
@@ -252,7 +252,7 @@ export const projectRoutes = new Hono<AuthEnv>()
             eq(projectMembers.userId, user.id)
           )
         )
-        .get()
+        .then((rows) => rows[0] ?? null)
 
       if (!membership || membership.role !== "owner") {
         return c.json({ error: "Forbidden" }, 403)
@@ -263,7 +263,7 @@ export const projectRoutes = new Hono<AuthEnv>()
         .select()
         .from(users)
         .where(eq(users.email, email))
-        .get()
+        .then((rows) => rows[0] ?? null)
 
       if (!invitee) {
         return c.json({ error: "User not found. They need to sign up first." }, 404)
@@ -279,7 +279,7 @@ export const projectRoutes = new Hono<AuthEnv>()
             eq(projectMembers.userId, invitee.id)
           )
         )
-        .get()
+        .then((rows) => rows[0] ?? null)
 
       if (existing) {
         return c.json({ error: "User is already a member" }, 409)
@@ -310,7 +310,7 @@ export const projectRoutes = new Hono<AuthEnv>()
           eq(projectMembers.userId, user.id)
         )
       )
-      .get()
+      .then((rows) => rows[0] ?? null)
 
     if (!membership || membership.role !== "owner") {
       return c.json({ error: "Forbidden" }, 403)
@@ -329,7 +329,7 @@ export const projectRoutes = new Hono<AuthEnv>()
           eq(projectMembers.userId, targetUserId)
         )
       )
-      .get()
+      .then((rows) => rows[0] ?? null)
 
     if (!targetMembership) {
       return c.json({ error: "Member not found" }, 404)

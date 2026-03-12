@@ -22,6 +22,16 @@ const deleteContractGroupSchema = z.object({
   confirmName: z.string().min(1),
 })
 
+function isUniqueConstraintError(error: unknown, constraintName: string): boolean {
+  if (!(error instanceof Error)) return false
+
+  return (
+    error.message.includes("UNIQUE constraint failed") ||
+    error.message.includes("duplicate key value") ||
+    error.message.includes(constraintName)
+  )
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async function assertMembership(
@@ -37,7 +47,7 @@ async function assertMembership(
         eq(projectMembers.userId, userId)
       )
     )
-    .get()
+    .then((rows) => rows[0] ?? null)
   return !!row
 }
 
@@ -107,8 +117,7 @@ export const contractGroupRoutes = new Hono<AuthEnv>()
           name,
         })
       } catch (error) {
-        const message = error instanceof Error ? error.message : ""
-        if (message.includes("UNIQUE constraint failed")) {
+        if (isUniqueConstraintError(error, "contract_groups_project_name_unique")) {
           return c.json({ error: "Group name already exists" }, 409)
         }
         throw error
@@ -118,7 +127,7 @@ export const contractGroupRoutes = new Hono<AuthEnv>()
         .select()
         .from(contractGroups)
         .where(eq(contractGroups.id, id))
-        .get()
+        .then((rows) => rows[0] ?? null)
 
       if (!created) {
         return c.json({ error: "Failed to create group" }, 500)
@@ -151,7 +160,7 @@ export const contractGroupRoutes = new Hono<AuthEnv>()
             eq(contractGroups.projectId, projectId)
           )
         )
-        .get()
+        .then((rows) => rows[0] ?? null)
 
       if (!existing) {
         return c.json({ error: "Group not found" }, 404)
@@ -168,8 +177,7 @@ export const contractGroupRoutes = new Hono<AuthEnv>()
             .set({ name })
             .where(eq(contractGroups.id, groupId))
         } catch (error) {
-          const message = error instanceof Error ? error.message : ""
-          if (message.includes("UNIQUE constraint failed")) {
+          if (isUniqueConstraintError(error, "contract_groups_project_name_unique")) {
             return c.json({ error: "Group name already exists" }, 409)
           }
           throw error
@@ -180,7 +188,7 @@ export const contractGroupRoutes = new Hono<AuthEnv>()
         .select()
         .from(contractGroups)
         .where(eq(contractGroups.id, groupId))
-        .get()
+        .then((rows) => rows[0] ?? null)
 
       if (!updated) {
         return c.json({ error: "Failed to update group" }, 500)
@@ -222,7 +230,7 @@ export const contractGroupRoutes = new Hono<AuthEnv>()
             eq(contractGroups.projectId, projectId)
           )
         )
-        .get()
+        .then((rows) => rows[0] ?? null)
 
       if (!group) {
         return c.json({ error: "Group not found" }, 404)

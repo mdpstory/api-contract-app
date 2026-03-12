@@ -1,38 +1,28 @@
 import { sql } from "drizzle-orm"
 import {
+  boolean,
   integer,
-  sqliteTable,
+  pgTable,
   text,
   uniqueIndex,
-} from "drizzle-orm/sqlite-core"
+} from "drizzle-orm/pg-core"
+
+const nowDefault = sql`to_char(timezone('utc', now()), 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`
 
 // ─── Users ────────────────────────────────────────────────────────────────────
 
-export const users = sqliteTable("users", {
+export const users = pgTable("users", {
   id: text("id").primaryKey(),
   email: text("email").notNull().unique(),
   name: text("name"),
   createdAt: text("created_at")
     .notNull()
-    .default(sql`(datetime('now'))`),
-})
-
-// ─── Sessions (Lucia Auth) ────────────────────────────────────────────────────
-
-export const sessions = sqliteTable("sessions", {
-  id: text("id").primaryKey(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  expiresAt: text("expires_at").notNull(),
-  createdAt: text("created_at")
-    .notNull()
-    .default(sql`(datetime('now'))`),
+    .default(nowDefault),
 })
 
 // ─── Magic Links ──────────────────────────────────────────────────────────────
 
-export const magicLinks = sqliteTable("magic_links", {
+export const magicLinks = pgTable("magic_links", {
   id: text("id").primaryKey(),
   userId: text("user_id")
     .notNull()
@@ -44,7 +34,7 @@ export const magicLinks = sqliteTable("magic_links", {
 
 // ─── Projects ─────────────────────────────────────────────────────────────────
 
-export const projects = sqliteTable("projects", {
+export const projects = pgTable("projects", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description"),
@@ -53,12 +43,12 @@ export const projects = sqliteTable("projects", {
     .references(() => users.id, { onDelete: "cascade" }),
   createdAt: text("created_at")
     .notNull()
-    .default(sql`(datetime('now'))`),
+    .default(nowDefault),
 })
 
 // ─── Project Members ──────────────────────────────────────────────────────────
 
-export const projectMembers = sqliteTable(
+export const projectMembers = pgTable(
   "project_members",
   {
     projectId: text("project_id")
@@ -72,14 +62,14 @@ export const projectMembers = sqliteTable(
       .default("member"),
     joinedAt: text("joined_at")
       .notNull()
-      .default(sql`(datetime('now'))`),
+      .default(nowDefault),
   },
   (t) => [uniqueIndex("project_members_unique").on(t.projectId, t.userId)]
 )
 
 // ─── Contract Groups ──────────────────────────────────────────────────────────
 
-export const contractGroups = sqliteTable(
+export const contractGroups = pgTable(
   "contract_groups",
   {
     id: text("id").primaryKey(),
@@ -89,14 +79,14 @@ export const contractGroups = sqliteTable(
     name: text("name").notNull(),
     createdAt: text("created_at")
       .notNull()
-      .default(sql`(datetime('now'))`),
+      .default(nowDefault),
   },
   (t) => [uniqueIndex("contract_groups_project_name_unique").on(t.projectId, t.name)]
 )
 
 // ─── Contracts ────────────────────────────────────────────────────────────────
 
-export const contracts = sqliteTable(
+export const contracts = pgTable(
   "contracts",
   {
     id: text("id").primaryKey(),
@@ -123,17 +113,17 @@ export const contracts = sqliteTable(
     responseSchema: text("response_schema").notNull().default('{"fields":[]}'),
     createdAt: text("created_at")
       .notNull()
-      .default(sql`(datetime('now'))`),
+      .default(nowDefault),
     updatedAt: text("updated_at")
       .notNull()
-      .default(sql`(datetime('now'))`),
+      .default(nowDefault),
   },
   (t) => [uniqueIndex("contracts_project_method_path_unique").on(t.projectId, t.method, t.path)]
 )
 
 // ─── Contract Versions ────────────────────────────────────────────────────────
 
-export const contractVersions = sqliteTable(
+export const contractVersions = pgTable(
   "contract_versions",
   {
     id: text("id").primaryKey(),
@@ -146,7 +136,7 @@ export const contractVersions = sqliteTable(
       .references(() => users.id),
     changedAt: text("changed_at")
       .notNull()
-      .default(sql`(datetime('now'))`),
+      .default(nowDefault),
     changeSummary: text("change_summary").notNull(),
     // Full contract state at this version
     snapshot: text("snapshot").notNull(),
@@ -158,7 +148,7 @@ export const contractVersions = sqliteTable(
 
 // ─── Environments ─────────────────────────────────────────────────────────────
 
-export const environments = sqliteTable(
+export const environments = pgTable(
   "environments",
   {
     id: text("id").primaryKey(),
@@ -166,17 +156,17 @@ export const environments = sqliteTable(
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
-    isGlobal: integer("is_global", { mode: "boolean" }).notNull().default(false),
+    isGlobal: boolean("is_global").notNull().default(false),
     createdAt: text("created_at")
       .notNull()
-      .default(sql`(datetime('now'))`),
+      .default(nowDefault),
   },
   (t) => [uniqueIndex("environments_project_name_unique").on(t.projectId, t.name)]
 )
 
 // ─── Environment Variables ────────────────────────────────────────────────────
 
-export const envVariables = sqliteTable(
+export const envVariables = pgTable(
   "env_variables",
   {
     id: text("id").primaryKey(),
@@ -191,7 +181,7 @@ export const envVariables = sqliteTable(
 
 // ─── Validation Runs ──────────────────────────────────────────────────────────
 
-export const validationRuns = sqliteTable("validation_runs", {
+export const validationRuns = pgTable("validation_runs", {
   id: text("id").primaryKey(),
   contractId: text("contract_id")
     .notNull()
@@ -206,13 +196,12 @@ export const validationRuns = sqliteTable("validation_runs", {
   details: text("details").notNull().default("[]"),
   createdAt: text("created_at")
     .notNull()
-    .default(sql`(datetime('now'))`),
+    .default(nowDefault),
 })
 
 // ─── Type exports ─────────────────────────────────────────────────────────────
 
 export type UserRow = typeof users.$inferSelect
-export type SessionRow = typeof sessions.$inferSelect
 export type MagicLinkRow = typeof magicLinks.$inferSelect
 export type ProjectRow = typeof projects.$inferSelect
 export type ProjectMemberRow = typeof projectMembers.$inferSelect

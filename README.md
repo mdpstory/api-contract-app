@@ -8,7 +8,7 @@ A self-hosted tool for defining, sharing, and validating API contracts between f
 |----------|-----------------------------------|
 | Frontend | Vite + React + TanStack Router/Query |
 | Backend  | Hono.js + Bun                     |
-| Database | SQLite (persisted via Docker volume) |
+| Database | PostgreSQL / Neon                 |
 | Auth     | Magic Link + Session 30 days      |
 | Email    | Resend                            |
 | UI       | shadcn/ui + Tailwind v4           |
@@ -39,7 +39,7 @@ bun install
 cp apps/api/.env.example apps/api/.env
 # Edit apps/api/.env with your values (see table below)
 
-# Run database migrations
+# Apply database schema
 cd apps/api && bun run db:migrate && cd ../..
 
 # Start both servers (in separate terminals)
@@ -53,7 +53,7 @@ In development, if `RESEND_API_KEY` is empty, magic links are printed to the API
 
 | Variable          | Default                       | Description                                          |
 |-------------------|-------------------------------|------------------------------------------------------|
-| `DATABASE_PATH`   | `data/app.db`                 | SQLite database file path                            |
+| `DATABASE_URL`    | *(required)*                  | PostgreSQL connection string                         |
 | `PORT`            | `3030`                        | API server port                                      |
 | `WEB_URL`         | `http://localhost:5173`       | Frontend URL (for CORS + magic link redirect)        |
 | `RESEND_API_KEY`  | *(empty)*                     | Resend API key — empty = console fallback in dev     |
@@ -86,7 +86,7 @@ docker compose up -d --build
 
 - **Web** — available at port `80` (put behind a reverse proxy for HTTPS)
 - **API** — available at port `3001` (internal; nginx proxies `/api` from the web container)
-- **Database** — SQLite persisted in Docker volume `api-data`
+- **Database** — external PostgreSQL instance referenced by `DATABASE_URL`
 
 Database migrations run automatically on container startup.
 
