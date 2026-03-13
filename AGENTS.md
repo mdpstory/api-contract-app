@@ -24,14 +24,8 @@ Run from repo root:
 
 ```bash
 bun install
-cp apps/api/.env.example apps/api/.env
+cp .env.example .env
 bun run --filter api db:migrate
-```
-
-For the web dev proxy, create `apps/web/.env` containing:
-
-```bash
-API_PORT=3030
 ```
 
 ## Build / Dev / Check Commands

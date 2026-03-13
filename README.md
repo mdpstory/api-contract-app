@@ -36,8 +36,8 @@ A self-hosted tool for defining, sharing, and validating API contracts between f
 bun install
 
 # Setup environment
-cp apps/api/.env.example apps/api/.env
-# Edit apps/api/.env with your values (see table below)
+cp .env.example .env
+# Edit .env with your values (see table below)
 
 # Apply database schema
 cd apps/api && bun run db:migrate && cd ../..
@@ -49,21 +49,17 @@ bun run dev:web    # Web on http://localhost:5173
 
 In development, if `RESEND_API_KEY` is empty, magic links are printed to the API console — no email needed.
 
-### Environment Variables (`apps/api/.env`)
+### Environment Variables (`.env` at repo root)
 
 | Variable          | Default                       | Description                                          |
 |-------------------|-------------------------------|------------------------------------------------------|
 | `DATABASE_URL`    | *(required)*                  | PostgreSQL connection string                         |
 | `PORT`            | `3030`                        | API server port                                      |
+| `JWT_SECRET`      | `replace-this-in-production`  | JWT signing secret; required in production           |
 | `WEB_URL`         | `http://localhost:5173`       | Frontend URL (for CORS + magic link redirect)        |
 | `RESEND_API_KEY`  | *(empty)*                     | Resend API key — empty = console fallback in dev     |
 | `EMAIL_FROM`      | `onboarding@resend.dev`       | Sender email (use your verified domain in prod)      |
-
-Also create `apps/web/.env` for the dev proxy:
-
-```
-API_PORT=3030
-```
+| `VITE_API_PORT`   | `3030`                        | Web dev proxy target port for `/api`                 |
 
 ## Self-hosted Deployment (Docker Compose)
 
@@ -72,7 +68,7 @@ API_PORT=3030
 Set the required variables in your shell environment or in a `.env` file **at the project root** (Docker Compose auto-reads it):
 
 ```bash
-# .env (at repo root — for docker compose)
+# .env (at repo root)
 WEB_URL=https://contracts.yourdomain.com
 RESEND_API_KEY=re_xxxxxxxxxxxx
 EMAIL_FROM=noreply@yourdomain.com
