@@ -5,7 +5,10 @@ import { getOrFetchMe } from "@/features/auth/hooks"
 import { useProject } from "@/features/projects/hooks"
 import {
   useContract,
+  useCreateContractGroup,
   useContractGroups,
+  useContracts,
+  useMoveContractGroup,
   useUpdateContract,
   useUpdateContractStatus,
   useDeleteContract,
@@ -13,6 +16,7 @@ import {
 import { AppLayout } from "@/components/layout/app-layout"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import {
   Dialog,
@@ -179,7 +183,10 @@ function ContractEditor({ contract, projectId }: { contract: Contract; projectId
   const navigate = useNavigate()
   const searchState = Route.useSearch()
   const { data: project } = useProject(projectId)
+  const { data: contracts = [] } = useContracts(projectId)
   const { data: groups = [] } = useContractGroups(projectId)
+  const { mutate: moveContractGroup, isPending: isMovingContract } =
+    useMoveContractGroup(projectId)
 
   const activeTab           = searchState.tab ?? "definition"
   const activeDefinitionTab = searchState.definitionTab ?? "query"
@@ -214,6 +221,41 @@ function ContractEditor({ contract, projectId }: { contract: Contract; projectId
   const groupName = contract.groupId
     ? (groups.find((g) => g.id === contract.groupId)?.name ?? "Ungrouped")
     : "Ungrouped"
+  const groupById = React.useMemo(
+    () => new Map(groups.map((group) => [group.id, group])),
+    [groups]
+  )
+  const groupCounts = React.useMemo(() => {
+    const counts = new Map<string, number>()
+
+    for (const item of contracts) {
+      if (item.groupId && groupById.has(item.groupId)) {
+        counts.set(item.groupId, (counts.get(item.groupId) ?? 0) + 1)
+      }
+    }
+
+    return counts
+  }, [contracts, groupById])
+  const ungroupedCount = contracts.filter(
+    (item) => !item.groupId || !groupById.has(item.groupId)
+  ).length
+
+  function moveContractToGroup(contractId: string, nextGroupId: string | null) {
+    moveContractGroup(
+      { contractId, groupId: nextGroupId },
+      {
+        onSuccess: () => {
+          const targetName =
+            nextGroupId === null
+              ? "Ungrouped"
+              : (groupById.get(nextGroupId)?.name ?? "Group")
+          toast({ title: "Moved to " + targetName, variant: "success" })
+        },
+        onError: (err) =>
+          toast({ title: "Error", description: err.message, variant: "error" }),
+      }
+    )
+  }
 
   // ── Local form state (manual save) ──
   const [method, setMethod]               = React.useState<HttpMethod>(contract.method)
@@ -225,6 +267,7 @@ function ContractEditor({ contract, projectId }: { contract: Contract; projectId
   const [queryPreviewMode, setQueryPreviewMode] = React.useState<"typescript" | "jsonc">("typescript")
   const [requestPreviewMode, setRequestPreviewMode] = React.useState<"typescript" | "jsonc">("typescript")
   const [responsePreviewMode, setResponsePreviewMode] = React.useState<"typescript" | "jsonc">("typescript")
+  const [createGroupOpen, setCreateGroupOpen] = React.useState(false)
   const [deleteOpen, setDeleteOpen]       = React.useState(false)
 
   const queryValidation = React.useMemo(
@@ -333,6 +376,15 @@ function ContractEditor({ contract, projectId }: { contract: Contract; projectId
         projectDescription: project?.description,
         active: "endpoints",
         endpointSearch: endpointBackSearch,
+        groups,
+        contracts,
+        selectedGroup: endpointBackSearch.group,
+        activeContractId: contract.id,
+        onCreateGroup: () => setCreateGroupOpen(true),
+        onMoveContractGroup: moveContractToGroup,
+        isMovingContract,
+        groupCounts,
+        ungroupedCount,
       }}
       breadcrumbs={[
         { label: project?.name ?? "...", href: `/projects/${projectId}/${backSection}` },
@@ -569,6 +621,14 @@ function ContractEditor({ contract, projectId }: { contract: Contract; projectId
       </div>
 
       {/* Delete dialog */}
+      <Dialog open={createGroupOpen} onOpenChange={setCreateGroupOpen}>
+        <CreateGroupDialogContent
+          key={createGroupOpen ? "open" : "closed"}
+          projectId={projectId}
+          onClose={() => setCreateGroupOpen(false)}
+        />
+      </Dialog>
+
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent>
           <DialogHeader>
@@ -594,5 +654,58 @@ function ContractEditor({ contract, projectId }: { contract: Contract; projectId
         </DialogContent>
       </Dialog>
     </AppLayout>
+  )
+}
+
+function CreateGroupDialogContent({
+  projectId,
+  onClose,
+}: {
+  projectId: string
+  onClose: () => void
+}) {
+  const [name, setName] = React.useState("")
+  const { mutate: createGroup, isPending } = useCreateContractGroup(projectId)
+  const { toast } = useToast()
+
+  function handleSubmit(event: React.FormEvent) {
+    event.preventDefault()
+
+    createGroup(
+      { name },
+      {
+        onSuccess: () => {
+          toast({ title: "Group created", variant: "success" })
+          onClose()
+        },
+        onError: (err) =>
+          toast({ title: "Error", description: err.message, variant: "error" }),
+      }
+    )
+  }
+
+  return (
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>New group</DialogTitle>
+      </DialogHeader>
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <Input
+          placeholder="Payments"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          autoFocus
+          required
+        />
+        <div className="flex justify-end gap-2 pt-1">
+          <Button type="button" variant="ghost" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" size="sm" disabled={isPending || !name.trim()}>
+            {isPending ? "Creating..." : "Create group"}
+          </Button>
+        </div>
+      </form>
+    </DialogContent>
   )
 }

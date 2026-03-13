@@ -184,6 +184,23 @@ export function ProjectSectionPage({
     setDragOverTarget(null)
   }
 
+  function moveContractToGroup(contractId: string, nextGroupId: string | null) {
+    moveContractGroup(
+      { contractId, groupId: nextGroupId },
+      {
+        onSuccess: () => {
+          const targetName =
+            nextGroupId === null
+              ? "Ungrouped"
+              : (groupById.get(nextGroupId)?.name ?? "Group")
+          toast({ title: "Moved to " + targetName, variant: "success" })
+        },
+        onError: (err) =>
+          toast({ title: "Error", description: err.message, variant: "error" }),
+      }
+    )
+  }
+
   function handleContractDragStart(contractId: string, event: React.DragEvent<HTMLButtonElement>) {
     if (isMovingContract) return
     setDraggingContractId(contractId)
@@ -214,16 +231,7 @@ export function ProjectSectionPage({
     const nextGroupId = target === UNGROUPED_DROP_TARGET ? null : target
     if ((draggedContract.groupId ?? null) === nextGroupId) { clearDragState(); return }
 
-    moveContractGroup(
-      { contractId: draggedContract.id, groupId: nextGroupId },
-      {
-        onSuccess: () => {
-          const targetName = nextGroupId === null ? "Ungrouped" : (groupById.get(nextGroupId)?.name ?? "Group")
-          toast({ title: "Moved to " + targetName, variant: "success" })
-        },
-        onError: (err) => toast({ title: "Error", description: err.message, variant: "error" }),
-      }
-    )
+    moveContractToGroup(draggedContract.id, nextGroupId)
     clearDragState()
   }
 
@@ -240,9 +248,12 @@ export function ProjectSectionPage({
         active: "endpoints",
         endpointSearch: endpointSearchParams,
         groups,
+        contracts,
         selectedGroup: groupFilter,
         onSelectGroup: (group) => updateEndpointSearch({ group }),
         onCreateGroup: () => setCreateGroupOpen(true),
+        onMoveContractGroup: moveContractToGroup,
+        isMovingContract,
         totalCount: contracts.length,
         groupCounts,
         ungroupedCount,
