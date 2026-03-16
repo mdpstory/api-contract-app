@@ -109,6 +109,9 @@ export const contracts = pgTable(
     }).notNull().default("json"),
     // JSON stored as text
     querySchema: text("query_schema").notNull().default('{"fields":[]}'),
+    parametersSchema: text("parameters_schema").notNull().default('{"fields":[]}'),
+    headersSchema: text("headers_schema").notNull().default('{"fields":[]}'),
+    authSchema: text("auth_schema").notNull().default('{"fields":[]}'),
     requestSchema: text("request_schema").notNull().default('{"fields":[]}'),
     responseSchema: text("response_schema").notNull().default('{"fields":[]}'),
     createdAt: text("created_at")

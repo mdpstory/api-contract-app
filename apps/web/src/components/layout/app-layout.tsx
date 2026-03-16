@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { LogOut, ChevronRight, Zap } from "lucide-react";
+import { LogOut, Zap } from "lucide-react";
 import { ModeToggle } from "@/components/mode-toggle";
 import { useMe, useLogout } from "@/features/auth/hooks";
 import { cn } from "@/lib/cn";
@@ -10,14 +10,12 @@ import { AppSidebar, type AppSidebarContext } from "./app-sidebar";
 
 interface AppLayoutProps {
   children: React.ReactNode;
-  breadcrumbs?: Array<{ label: string; href?: string }>;
   mainClassName?: string;
   sidebar?: AppSidebarContext;
 }
 
 export function AppLayout({
   children,
-  breadcrumbs,
   mainClassName,
   sidebar,
 }: AppLayoutProps) {
@@ -64,35 +62,6 @@ export function AppLayout({
                 API Contract
               </span>
             </Link>
-
-            {/* Breadcrumbs */}
-            {breadcrumbs && breadcrumbs.length > 0 && (
-              <nav className="flex min-w-0 flex-1 items-center gap-1 font-mono">
-                <ChevronRight size={12} className="text-text-muted shrink-0" />
-                {breadcrumbs.map((crumb, i) => (
-                  <React.Fragment key={i}>
-                    {crumb.href ? (
-                      <Link
-                        to={crumb.href}
-                        className="max-w-[160px] truncate text-xs text-text-secondary transition-colors hover:text-text-primary"
-                      >
-                        {crumb.label}
-                      </Link>
-                    ) : (
-                      <span className="max-w-[200px] truncate text-xs font-medium text-text-primary">
-                        {crumb.label}
-                      </span>
-                    )}
-                    {i < breadcrumbs.length - 1 && (
-                      <ChevronRight
-                        size={12}
-                        className="text-text-muted shrink-0"
-                      />
-                    )}
-                  </React.Fragment>
-                ))}
-              </nav>
-            )}
 
             {/* Right: user + logout */}
             <div className="ml-auto flex items-center gap-2">

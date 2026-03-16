@@ -8,13 +8,11 @@ import * as React from "react"
 import {
   Plus,
   AlertTriangle,
-  Folder,
-  GripVertical,
-  Pencil,
-  Trash2,
   Eye,
-  Search,
+  FileSliders,
 } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { JsonPreview } from "@/features/contracts/components/json-preview"
 import { useProject } from "@/features/projects/hooks"
 import {
   ALL_GROUP_FILTER,
@@ -22,18 +20,17 @@ import {
   UNGROUPED_GROUP_FILTER,
 } from "@/features/projects/lib/group-filters"
 import {
+  useContract,
   useContractGroups,
   useContracts,
   useCreateContract,
   useCreateContractGroup,
-  useDeleteContract,
   useDeleteContractGroup,
   useMoveContractGroup,
   useUpdateContractGroup,
 } from "@/features/contracts/hooks"
 import { AppLayout } from "@/components/layout/app-layout"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import {
   Dialog,
@@ -42,8 +39,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { SwaggerProjectPreview } from "@/features/contracts/components/swagger-preview"
+import { ContractEditor } from "@/features/contracts/components/contract-editor"
+import { TabBar, type RequestTab } from "@/features/contracts/components/tab-bar"
+import { SchemaEditor } from "@/features/contracts/components/schema-editor"
+import { SchemaLivePreview } from "@/features/contracts/components/schema-live-preview"
 import { useToast } from "@/lib/toast"
-import type { Contract, ContractGroup, HttpMethod } from "@repo/types"
+import type { ContractGroup, ContractSchema, HttpMethod, RequestBodyFormat } from "@repo/types"
 
 export const Route = createFileRoute("/projects/$projectId")({
   component: ProjectLayout,
@@ -68,7 +69,6 @@ export interface EndpointListSearch {
   q: string
   group: GroupFilter
 }
-const UNGROUPED_DROP_TARGET = UNGROUPED_GROUP_FILTER
 
 function ProjectLayout() {
   return <Outlet />
@@ -85,19 +85,73 @@ export function ProjectSectionPage({
 }) {
   const navigate = useNavigate()
   const { data: project } = useProject(projectId)
-  const { data: contracts = [], isLoading, isError } = useContracts(projectId)
-  const {
-    data: groups = [],
-    isLoading: isGroupsLoading,
-    isError: isGroupsError,
-  } = useContractGroups(projectId)
+  const { data: contracts = [] } = useContracts(projectId)
+  const { data: groups = [] } = useContractGroups(projectId)
 
-  const [createEndpointOpen, setCreateEndpointOpen] = React.useState(false)
+  // ── Tab state ──
+  const blankTabCounter = React.useRef(0)
+
+  function makeBlankTab(): RequestTab {
+    blankTabCounter.current += 1
+    return {
+      kind: "blank",
+      id: `blank-${blankTabCounter.current}`,
+      label: `Untitled ${blankTabCounter.current}`,
+    }
+  }
+
+  const initialTab = makeBlankTab()
+  const [openTabs, setOpenTabs] = React.useState<RequestTab[]>([initialTab])
+  const [activeTabId, setActiveTabId] = React.useState<string | null>(initialTab.id)
+
+  function openContractTab(contractId: string) {
+    const existing = openTabs.find(
+      (t) => t.kind === "contract" && t.contractId === contractId
+    )
+    if (existing) {
+      setActiveTabId(existing.id)
+      return
+    }
+    const contract = contracts.find((c) => c.id === contractId)
+    if (!contract) return
+    const tab: RequestTab = {
+      kind: "contract",
+      id: contractId,
+      contractId,
+      label: contract.path,
+      method: contract.method,
+    }
+    setOpenTabs((prev) => [...prev, tab])
+    setActiveTabId(tab.id)
+  }
+
+  function openBlankTab() {
+    const tab = makeBlankTab()
+    setOpenTabs((prev) => [...prev, tab])
+    setActiveTabId(tab.id)
+  }
+
+  function closeTab(id: string) {
+    setOpenTabs((prev) => {
+      const idx = prev.findIndex((t) => t.id === id)
+      const next = prev.filter((t) => t.id !== id)
+      if (next.length === 0) {
+        // Always keep at least one blank tab open
+        const fallback = makeBlankTab()
+        setActiveTabId(fallback.id)
+        return [fallback]
+      }
+      if (activeTabId === id) {
+        const neighbour = next[idx] ?? next[idx - 1] ?? null
+        setActiveTabId(neighbour?.id ?? null)
+      }
+      return next
+    })
+  }
+
   const [createGroupOpen, setCreateGroupOpen] = React.useState(false)
   const [renameGroupTarget, setRenameGroupTarget] = React.useState<ContractGroup | null>(null)
   const [deleteGroupTarget, setDeleteGroupTarget] = React.useState<ContractGroup | null>(null)
-  const [draggingContractId, setDraggingContractId] = React.useState<string | null>(null)
-  const [dragOverTarget, setDragOverTarget] = React.useState<string | null>(null)
 
   const { mutate: moveContractGroup, isPending: isMovingContract } = useMoveContractGroup(projectId)
   const { toast } = useToast()
@@ -124,22 +178,10 @@ export function ProjectSectionPage({
 
   // Auto-clear invalid group filter
   React.useEffect(() => {
-    if (groupFilter === ALL_GROUP_FILTER || groupFilter === UNGROUPED_DROP_TARGET) return
+    if (groupFilter === ALL_GROUP_FILTER || groupFilter === UNGROUPED_GROUP_FILTER) return
     if (!groups.some((g) => g.id === groupFilter)) updateEndpointSearch({ group: ALL_GROUP_FILTER })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupFilter, groups])
-
-  const statusFiltered = contracts.filter((c) => {
-    const q = search.toLowerCase()
-    const matchStatus = filter === "all" || c.status === filter
-    const matchSearch = !search || c.path.toLowerCase().includes(q) || c.method.toLowerCase().includes(q)
-    return matchStatus && matchSearch
-  })
-
-  const filtered = statusFiltered.filter((c) => {
-    if (groupFilter === ALL_GROUP_FILTER) return true
-    if (groupFilter === UNGROUPED_DROP_TARGET) return !c.groupId || !groupById.has(c.groupId)
-    return c.groupId === groupFilter
-  })
 
   const groupCounts = React.useMemo(() => {
     const counts = new Map<string, number>()
@@ -152,37 +194,6 @@ export function ProjectSectionPage({
   }, [contracts, groupById])
 
   const ungroupedCount = contracts.filter((c) => !c.groupId || !groupById.has(c.groupId)).length
-  const isDraggingContract = draggingContractId !== null
-  const showEmptyGroups = !search && filter === "all" && groupFilter === ALL_GROUP_FILTER
-
-  const visibleGroups =
-    groupFilter === ALL_GROUP_FILTER
-      ? groups
-      : groupFilter === UNGROUPED_DROP_TARGET
-        ? []
-        : groups.filter((g) => g.id === groupFilter)
-
-  const groupedSections = visibleGroups
-    .map((group) => ({
-      group,
-      items: filtered.filter((c) => c.groupId === group.id),
-    }))
-    .filter((s) =>
-      groupFilter !== ALL_GROUP_FILTER
-        ? true
-        : s.items.length > 0 || showEmptyGroups || isDraggingContract
-    )
-
-  const ungroupedContracts = filtered.filter((c) => !c.groupId || !groupById.has(c.groupId))
-  const isShowingUngrouped = groupFilter === ALL_GROUP_FILTER || groupFilter === UNGROUPED_DROP_TARGET
-  const showUngroupedSection =
-    isShowingUngrouped &&
-    (ungroupedContracts.length > 0 || groups.length === 0 || isDraggingContract || groupFilter === UNGROUPED_DROP_TARGET)
-
-  function clearDragState() {
-    setDraggingContractId(null)
-    setDragOverTarget(null)
-  }
 
   function moveContractToGroup(contractId: string, nextGroupId: string | null) {
     moveContractGroup(
@@ -199,40 +210,6 @@ export function ProjectSectionPage({
           toast({ title: "Error", description: err.message, variant: "error" }),
       }
     )
-  }
-
-  function handleContractDragStart(contractId: string, event: React.DragEvent<HTMLButtonElement>) {
-    if (isMovingContract) return
-    setDraggingContractId(contractId)
-    event.dataTransfer.effectAllowed = "move"
-    event.dataTransfer.setData("application/x-contract-id", contractId)
-    event.dataTransfer.setData("text/plain", contractId)
-  }
-
-  function handleDropZoneDragOver(target: string, event: React.DragEvent<HTMLDivElement>) {
-    if (!draggingContractId || isMovingContract) return
-    event.preventDefault()
-    event.dataTransfer.dropEffect = "move"
-    if (dragOverTarget !== target) setDragOverTarget(target)
-  }
-
-  function handleDropOnTarget(target: string, event: React.DragEvent<HTMLDivElement>) {
-    if (isMovingContract) return
-    event.preventDefault()
-    const draggedId =
-      draggingContractId ||
-      event.dataTransfer.getData("application/x-contract-id") ||
-      event.dataTransfer.getData("text/plain")
-    if (!draggedId) { clearDragState(); return }
-
-    const draggedContract = contracts.find((c) => c.id === draggedId)
-    if (!draggedContract) { clearDragState(); return }
-
-    const nextGroupId = target === UNGROUPED_DROP_TARGET ? null : target
-    if ((draggedContract.groupId ?? null) === nextGroupId) { clearDragState(); return }
-
-    moveContractToGroup(draggedContract.id, nextGroupId)
-    clearDragState()
   }
 
   const endpointSearchParams = { filter, q: search, group: groupFilter }
@@ -253,209 +230,138 @@ export function ProjectSectionPage({
         onSelectGroup: (group) => updateEndpointSearch({ group }),
         onCreateGroup: () => setCreateGroupOpen(true),
         onMoveContractGroup: moveContractToGroup,
+        onOpenContract: openContractTab,
         isMovingContract,
         totalCount: contracts.length,
         groupCounts,
         ungroupedCount,
+        activeContractId: (() => {
+          const active = openTabs.find((t) => t.id === activeTabId)
+          return active?.kind === "contract" ? active.contractId : undefined
+        })(),
       }}
-      breadcrumbs={[
-        { label: "Projects", href: "/dashboard" },
-        { label: project?.name ?? "..." },
-      ]}
     >
       <div className="min-h-[calc(100vh-3rem)] flex flex-col">
           {/* Top toolbar */}
-          <div className="flex items-center justify-between gap-3 border-b border-border-subtle px-5 py-3">
-            {/* Tab switcher */}
-            <div className="flex items-center gap-1 bg-overlay rounded p-0.5">
-              <Link
-                to="/projects/$projectId/endpoints"
-                params={{ projectId }}
-                search={endpointSearchParams}
-                className={[
-                  "flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors",
-                  activeSection === "endpoints"
-                    ? "bg-elevated text-text-primary shadow-card"
-                    : "text-text-muted hover:text-text-secondary",
-                ].join(" ")}
-              >
-                Endpoints
-                {contracts.length > 0 && (
-                  <span className="text-[10px] text-text-muted tabular-nums">{contracts.length}</span>
-                )}
-              </Link>
-              <Link
-                to="/projects/$projectId/preview"
-                params={{ projectId }}
-                className={[
-                  "flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors",
-                  activeSection === "preview"
-                    ? "bg-elevated text-text-primary shadow-card"
-                    : "text-text-muted hover:text-text-secondary",
-                ].join(" ")}
-              >
-                <Eye size={11} />
-                Preview
-              </Link>
-            </div>
-
-            {/* Actions */}
-            {activeSection === "endpoints" && (
-              <Button size="sm" onClick={() => setCreateEndpointOpen(true)}>
-                <Plus size={12} />
-                Add endpoint
-              </Button>
-            )}
+          <div className="flex items-center gap-0 border-b border-border-subtle bg-surface">
+            {/* Section switcher */}
+            <Link
+              to="/projects/$projectId/endpoints"
+              params={{ projectId }}
+              search={endpointSearchParams}
+              className={[
+                "relative flex items-center gap-1.5 px-5 py-3 font-mono text-xs font-medium transition-colors",
+                activeSection === "endpoints"
+                  ? "text-text-primary"
+                  : "text-text-muted hover:text-text-secondary",
+              ].join(" ")}
+            >
+              Endpoints
+              {contracts.length > 0 && (
+                <span className="tabular-nums text-[10px] text-text-muted">{contracts.length}</span>
+              )}
+              {activeSection === "endpoints" && (
+                <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-accent" />
+              )}
+            </Link>
+            <Link
+              to="/projects/$projectId/preview"
+              params={{ projectId }}
+              className={[
+                "relative flex items-center gap-1.5 px-5 py-3 font-mono text-xs font-medium transition-colors",
+                activeSection === "preview"
+                  ? "text-text-primary"
+                  : "text-text-muted hover:text-text-secondary",
+              ].join(" ")}
+            >
+              <Eye size={11} />
+              Preview
+              {activeSection === "preview" && (
+                <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-accent" />
+              )}
+            </Link>
           </div>
 
           {/* Content */}
-          <div className="flex-1 p-5">
-            {activeSection === "endpoints" && (
-              <div className="space-y-4">
-                {/* Filter + search row */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  {/* Status pills */}
-                  <div className="flex items-center gap-0.5 rounded border border-border-subtle bg-elevated p-0.5">
-                    {(["all", "draft", "approved"] as FilterStatus[]).map((f) => (
+          {activeSection === "endpoints" ? (
+            <div className="flex flex-col flex-1 min-h-0">
+              {/* Postman-style tab bar */}
+              <TabBar
+                tabs={openTabs}
+                activeTabId={activeTabId}
+                onSelect={setActiveTabId}
+                onClose={closeTab}
+                onNew={openBlankTab}
+              />
+
+              {/* Tab content area */}
+              {activeTabId === null ? (
+                /* No tabs open — welcome state */
+                <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center py-20">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border-default bg-elevated">
+                    <FileSliders size={16} className="text-text-muted" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-text-primary">Open an endpoint to get started</p>
+                    <p className="mt-1 text-xs text-text-muted">
+                      Select an endpoint from the sidebar, or click{" "}
                       <button
-                        key={f}
-                        onClick={() => updateEndpointSearch({ filter: f })}
-                        className={[
-                          "rounded px-2.5 py-1 text-[11px] font-medium capitalize transition-colors",
-                          filter === f
-                            ? "bg-surface text-text-primary shadow-card"
-                            : "text-text-muted hover:text-text-secondary",
-                        ].join(" ")}
+                        type="button"
+                        onClick={openBlankTab}
+                        className="text-accent hover:underline"
                       >
-                        {f}
-                      </button>
-                    ))}
+                        +
+                      </button>{" "}
+                      to open a new blank tab
+                    </p>
                   </div>
-
-                  {/* Search */}
-                  <div className="relative flex-1 min-w-40">
-                    <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-                    <input
-                      type="text"
-                      placeholder="Search endpoints..."
-                      value={search}
-                        onChange={(e) => updateEndpointSearch({ q: e.target.value })}
-                      className="h-8 w-full rounded border border-border-default bg-elevated pl-7 pr-3 text-sm text-text-primary placeholder:text-text-muted transition-colors focus:border-accent focus:outline-none"
-                    />
-                  </div>
-
-                  {search || filter !== "all" ? (
-                    <span className="text-xs text-text-muted">
-                      {filtered.length} of {contracts.length}
-                    </span>
-                  ) : null}
                 </div>
+              ) : (() => {
+                const activeTab = openTabs.find((t) => t.id === activeTabId)
+                if (!activeTab) return null
 
-                {/* Endpoint list */}
-                {isLoading || isGroupsLoading ? (
-                  <ContractListSkeleton />
-                ) : isError || isGroupsError ? (
-                  <ErrorState message="Could not load endpoints. Please refresh." />
-                ) : filtered.length === 0 && contracts.length > 0 ? (
-                  <div className="py-16 text-center">
-                    <p className="text-sm text-text-muted">No endpoints match your filter.</p>
-                    <button
-                      className="mt-2 text-xs text-accent hover:underline"
-                        onClick={() => updateEndpointSearch({ filter: "all", q: "" })}
-                    >
-                      Clear filters
-                    </button>
-                  </div>
-                ) : contracts.length === 0 && groups.length === 0 ? (
-                  <EmptyState onNew={() => setCreateEndpointOpen(true)} />
-                ) : (
-                  <div className="space-y-3">
-                    {groupedSections.map(({ group, items }) => (
-                      <GroupSection
-                        key={group.id}
-                        group={group}
-                        contracts={items}
-                        projectId={projectId}
-                        endpointSearch={endpointSearchParams}
-                        isDropTarget={dragOverTarget === group.id}
-                        onDragOver={(e) => handleDropZoneDragOver(group.id, e)}
-                        onDrop={(e) => handleDropOnTarget(group.id, e)}
-                        onContractDragStart={handleContractDragStart}
-                        onContractDragEnd={clearDragState}
-                        draggingContractId={draggingContractId}
-                        onRenameGroup={() => setRenameGroupTarget(group)}
-                        onDeleteGroup={() => setDeleteGroupTarget(group)}
-                      />
-                    ))}
+                if (activeTab.kind === "blank") {
+                  return (
+                    <BlankTab
+                      key={activeTab.id}
+                      projectId={projectId}
+                      onCreated={(contractId, method, path) => {
+                        // Replace the blank tab with a contract tab in-place
+                        const newTab: RequestTab = {
+                          kind: "contract",
+                          id: contractId,
+                          contractId,
+                          label: path,
+                          method,
+                        }
+                        setOpenTabs((prev) =>
+                          prev.map((t) => t.id === activeTab.id ? newTab : t)
+                        )
+                        setActiveTabId(contractId)
+                      }}
+                    />
+                  )
+                }
 
-                    {showUngroupedSection && (
-                      <div
-                        className={[
-                          "overflow-hidden rounded-md border bg-surface transition-colors",
-                          dragOverTarget === UNGROUPED_DROP_TARGET
-                            ? "border-border-strong"
-                            : "border-border-subtle",
-                        ].join(" ")}
-                        onDragOver={(e) => handleDropZoneDragOver(UNGROUPED_DROP_TARGET, e)}
-                        onDrop={(e) => handleDropOnTarget(UNGROUPED_DROP_TARGET, e)}
-                      >
-                        <div className="flex items-center gap-2 border-b border-border-subtle bg-elevated/50 px-3 py-2">
-                          <span className="text-xs font-medium text-text-muted">Ungrouped</span>
-                          <span className="text-[10px] text-text-muted tabular-nums">
-                            {ungroupedContracts.length}
-                          </span>
-                        </div>
-                        {ungroupedContracts.length === 0 ? (
-                          <p className="px-3 py-4 text-xs text-text-muted">Drop endpoints here.</p>
-                        ) : (
-                          ungroupedContracts.map((contract, i) => (
-                            <ContractRow
-                              key={contract.id}
-                              contract={contract}
-                              projectId={projectId}
-                              endpointSearch={endpointSearchParams}
-                              isLast={i === ungroupedContracts.length - 1}
-                              isDragging={draggingContractId === contract.id}
-                              onDragStart={handleContractDragStart}
-                              onDragEnd={clearDragState}
-                            />
-                          ))
-                        )}
-                      </div>
-                    )}
-
-                    {groupedSections.length === 0 && groups.length > 0 && showEmptyGroups && (
-                      <p className="text-sm text-text-muted text-center py-8">
-                        No endpoints yet. Add an endpoint and assign it to a group.
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {activeSection === "preview" && (
-              isLoading || isGroupsLoading ? (
-                <ContractListSkeleton />
-              ) : isError || isGroupsError ? (
-                <ErrorState message="Could not load preview. Please refresh." />
-              ) : (
-                <SwaggerProjectPreview contracts={contracts} groups={groups} />
-              )
-            )}
-          </div>
+                return (
+                  <ContractTabContent
+                    key={activeTab.contractId}
+                    contractId={activeTab.contractId}
+                    projectId={projectId}
+                    onDeleted={() => closeTab(activeTab.id)}
+                  />
+                )
+              })()}
+            </div>
+          ) : (
+            /* Preview section */
+            <div className="flex-1 p-5">
+              <SwaggerProjectPreview contracts={contracts} groups={groups} />
+            </div>
+          )}
       </div>
 
       {/* Dialogs */}
-      <Dialog open={createEndpointOpen} onOpenChange={setCreateEndpointOpen}>
-        <NewContractDialog
-          key={createEndpointOpen ? "open" : "closed"}
-          projectId={projectId}
-          groups={groups}
-          onClose={() => setCreateEndpointOpen(false)}
-        />
-      </Dialog>
-
       <Dialog open={createGroupOpen} onOpenChange={setCreateGroupOpen}>
         <NewGroupDialog
           key={createGroupOpen ? "open" : "closed"}
@@ -482,203 +388,490 @@ export function ProjectSectionPage({
   )
 }
 
-// ─── Group Section ─────────────────────────────────────────────────────────────
+// ─── Tab content components ───────────────────────────────────────────────────
 
-function GroupSection({
-  group,
-  contracts,
+function ContractTabContent({
+  contractId,
   projectId,
-  endpointSearch,
-  isDropTarget,
-  onDragOver,
-  onDrop,
-  onContractDragStart,
-  onContractDragEnd,
-  draggingContractId,
-  onRenameGroup,
-  onDeleteGroup,
+  onDeleted,
 }: {
-  group: ContractGroup
-  contracts: Contract[]
+  contractId: string
   projectId: string
-  endpointSearch: EndpointListSearch
-  isDropTarget: boolean
-  onDragOver: (e: React.DragEvent<HTMLDivElement>) => void
-  onDrop: (e: React.DragEvent<HTMLDivElement>) => void
-  onContractDragStart: (id: string, e: React.DragEvent<HTMLButtonElement>) => void
-  onContractDragEnd: () => void
-  draggingContractId: string | null
-  onRenameGroup: () => void
-  onDeleteGroup: () => void
+  onDeleted: () => void
 }) {
-  return (
-    <div
-      className={[
-        "overflow-hidden rounded-md border bg-surface transition-colors",
-        isDropTarget ? "border-border-strong" : "border-border-subtle",
-      ].join(" ")}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
-    >
-      <div className="flex items-center justify-between gap-2 border-b border-border-subtle bg-elevated/50 px-3 py-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <Folder size={12} className="text-text-muted shrink-0" />
-          <span className="truncate text-xs font-medium text-text-primary">{group.name}</span>
-          <span className="text-[10px] text-text-muted tabular-nums shrink-0">{contracts.length}</span>
-        </div>
-        <div className="flex items-center gap-0.5">
-          <button
-            type="button"
-            onClick={onRenameGroup}
-            title="Rename"
-            className="rounded p-1 text-text-muted transition-colors hover:bg-overlay hover:text-text-secondary"
-          >
-            <Pencil size={11} />
-          </button>
-          <button
-            type="button"
-            onClick={onDeleteGroup}
-            title="Delete"
-            className="rounded p-1 text-text-muted transition-colors hover:bg-overlay hover:text-error"
-          >
-            <Trash2 size={11} />
-          </button>
-        </div>
+  const { data: contract, isLoading, isError } = useContract(projectId, contractId)
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-1 flex-col gap-3 p-5">
+        <div className="h-4 w-48 rounded bg-elevated animate-pulse" />
+        <div className="h-3 w-32 rounded bg-elevated animate-pulse" />
       </div>
+    )
+  }
 
-      {contracts.length === 0 ? (
-        <p className="px-3 py-4 text-xs text-text-muted">Drop endpoints here.</p>
-      ) : (
-        contracts.map((contract, i) => (
-          <ContractRow
-            key={contract.id}
-            contract={contract}
-            projectId={projectId}
-            endpointSearch={endpointSearch}
-            isLast={i === contracts.length - 1}
-            isDragging={draggingContractId === contract.id}
-            onDragStart={onContractDragStart}
-            onDragEnd={onContractDragEnd}
-          />
-        ))
-      )}
-    </div>
-  )
-}
-
-// ─── Contract Row ──────────────────────────────────────────────────────────────
-
-function ContractRow({
-  contract,
-  projectId,
-  endpointSearch,
-  isLast,
-  isDragging,
-  onDragStart,
-  onDragEnd,
-}: {
-  contract: Contract
-  projectId: string
-  endpointSearch: EndpointListSearch
-  isLast: boolean
-  isDragging: boolean
-  onDragStart: (id: string, e: React.DragEvent<HTMLButtonElement>) => void
-  onDragEnd: () => void
-}) {
-  const { toast } = useToast()
-  const { mutate: remove, isPending: isDeleting } = useDeleteContract(projectId)
-  const [deleteOpen, setDeleteOpen] = React.useState(false)
-
-  function handleDelete() {
-    remove(contract.id, {
-      onSuccess: () => {
-        setDeleteOpen(false)
-        toast({ title: "Endpoint deleted", variant: "success" })
-      },
-      onError: (err) => toast({ title: "Delete failed", description: err.message, variant: "error" }),
-    })
+  if (isError || !contract) {
+    return (
+      <div className="flex flex-1 items-center justify-center gap-2 py-20 text-sm text-text-secondary">
+        <AlertTriangle size={14} className="text-error shrink-0" />
+        Could not load endpoint. Please close this tab and try again.
+      </div>
+    )
   }
 
   return (
-    <div
-      className={[
-        "group flex items-center gap-1.5 px-3 py-2.5 transition-colors hover:bg-overlay/40",
-        isDragging ? "opacity-40" : "",
-        !isLast ? "border-b border-border-subtle" : "",
-      ].join(" ")}
-    >
-      {/* Drag handle */}
-      <button
-        type="button"
-        draggable
-        onDragStart={(e) => onDragStart(contract.id, e)}
-        onDragEnd={onDragEnd}
-        title="Drag to move"
-        className="h-6 w-5 shrink-0 flex items-center justify-center rounded text-text-muted cursor-grab active:cursor-grabbing hover:text-text-secondary opacity-0 group-hover:opacity-100 transition-opacity"
-      >
-        <GripVertical size={11} />
-      </button>
+    <ContractEditor
+      contract={contract}
+      projectId={projectId}
+      onDeleted={onDeleted}
+    />
+  )
+}
 
-      {/* Main link */}
-      <Link
-        to="/projects/$projectId/contracts/$contractId"
-        params={{ projectId, contractId: contract.id }}
-        search={{
-          listSection: "endpoints",
-          listFilter: endpointSearch.filter,
-          listQ: endpointSearch.q,
-          listGroup: endpointSearch.group,
-          tab: "definition",
-          definitionTab: "request",
-        }}
-        className="flex min-w-0 flex-1 items-center gap-3"
-      >
-        <span className={["shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold w-12 text-center", METHOD_COLORS[contract.method]].join(" ")}>
-          {contract.method}
-        </span>
-        <span className="flex-1 truncate font-mono text-sm text-text-secondary group-hover:text-text-primary transition-colors">
-          {contract.path}
-        </span>
-        <Badge variant={contract.status === "approved" ? "approved" : "draft"} className="shrink-0">
-          {contract.status}
-        </Badge>
-      </Link>
+// ─── Schema helpers (mirrors contract-editor.tsx) ────────────────────────────
 
-      {/* Delete */}
-      <button
-        type="button"
-        onClick={() => setDeleteOpen(true)}
-        disabled={isDeleting}
-        title="Delete"
-        className="h-6 w-6 shrink-0 flex items-center justify-center rounded text-text-muted/80 transition-colors hover:bg-error/10 hover:text-error disabled:opacity-40"
-      >
-        <Trash2 size={11} />
-      </button>
+function normalizeSchema(schema: ContractSchema): ContractSchema {
+  return {
+    fields: schema.fields
+      .map((f) => ({ ...f, name: f.name.trim() }))
+      .filter((f) => f.name.length > 0),
+  }
+}
 
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete endpoint</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <p className="text-sm text-text-secondary">
-              Permanently delete{" "}
-              <code className="font-mono text-xs bg-elevated px-1.5 py-0.5 rounded border border-border-default text-text-primary">
-                {contract.method} {contract.path}
-              </code>
-              ? This cannot be undone.
-            </p>
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="ghost" size="sm" onClick={() => setDeleteOpen(false)} disabled={isDeleting}>
-                Cancel
-              </Button>
-              <Button type="button" variant="destructive" size="sm" onClick={handleDelete} disabled={isDeleting}>
-                {isDeleting ? "Deleting..." : "Delete"}
-              </Button>
+interface SchemaValidationResult {
+  error: string | null
+  invalidRowIndexes: number[]
+}
+
+function validateSchema(schema: ContractSchema, label: string): SchemaValidationResult {
+  const seen = new Set<string>()
+  const fieldTypes = new Map<string, ContractSchema["fields"][number]["type"]>()
+  const pathIndexes = new Map<string, number>()
+
+  function invalid(error: string, invalidRowIndexes: number[]): SchemaValidationResult {
+    return { error, invalidRowIndexes }
+  }
+
+  for (const [i, field] of schema.fields.entries()) {
+    const fieldPath = field.name.trim()
+    if (!fieldPath) continue
+    const segments = fieldPath.split(".")
+    if (segments.some((s) => !s)) return invalid(`${label}: "${fieldPath}" is not a valid path.`, [i])
+    if (seen.has(fieldPath)) {
+      const existingIndex = pathIndexes.get(fieldPath)
+      return invalid(`${label}: duplicate field "${fieldPath}".`, existingIndex === undefined ? [i] : [existingIndex, i])
+    }
+
+    for (let depth = 1; depth < segments.length; depth += 1) {
+      const parentPath = segments.slice(0, depth).join(".")
+      const parentType = fieldTypes.get(parentPath)
+      if (parentType && parentType !== "object") {
+        const parentIndex = pathIndexes.get(parentPath)
+        return invalid(
+          `${label}: "${parentPath}" must be type "object" before adding nested field "${fieldPath}".`,
+          parentIndex === undefined ? [i] : [parentIndex, i]
+        )
+      }
+    }
+
+    for (const [existingPath, existingType] of fieldTypes) {
+      if (existingPath.startsWith(`${fieldPath}.`) && field.type !== "object") {
+        const childIndex = pathIndexes.get(existingPath)
+        return invalid(
+          `${label}: "${fieldPath}" must be type "object" because it already has nested fields.`,
+          childIndex === undefined ? [i] : [i, childIndex]
+        )
+      }
+
+      if (fieldPath.startsWith(`${existingPath}.`) && existingType !== "object") {
+        const parentIndex = pathIndexes.get(existingPath)
+        return invalid(
+          `${label}: "${existingPath}" must be type "object" before adding nested field "${fieldPath}".`,
+          parentIndex === undefined ? [i] : [parentIndex, i]
+        )
+      }
+    }
+
+    seen.add(fieldPath)
+    fieldTypes.set(fieldPath, field.type)
+    pathIndexes.set(fieldPath, i)
+  }
+  return { error: null, invalidRowIndexes: [] }
+}
+
+// ─── BlankTab ─────────────────────────────────────────────────────────────────
+
+function BlankTab({
+  projectId,
+  onCreated,
+}: {
+  projectId: string
+  onCreated: (contractId: string, method: HttpMethod, path: string) => void
+}) {
+  const [method, setMethod] = React.useState<HttpMethod>("GET")
+  const [path, setPath] = React.useState("")
+  const [groupId, setGroupId] = React.useState<string>("")
+  const [activeTab, setActiveTab] = React.useState<"query" | "parameters" | "headers" | "auth" | "body" | "response" | "preview">("query")
+  const [querySchema, setQuerySchema] = React.useState<ContractSchema>({ fields: [] })
+  const [parametersSchema, setParametersSchema] = React.useState<ContractSchema>({ fields: [] })
+  const [headersSchema, setHeadersSchema] = React.useState<ContractSchema>({ fields: [] })
+  const [authSchema, setAuthSchema] = React.useState<ContractSchema>({ fields: [] })
+  const [requestBodyFormat, setRequestBodyFormat] = React.useState<RequestBodyFormat>("json")
+  const [requestSchema, setRequestSchema] = React.useState<ContractSchema>({ fields: [] })
+  const [responseSchema, setResponseSchema] = React.useState<ContractSchema>({ fields: [] })
+  const [queryPreviewMode, setQueryPreviewMode] = React.useState<"typescript" | "jsonc">("typescript")
+  const [requestPreviewMode, setRequestPreviewMode] = React.useState<"typescript" | "jsonc">("typescript")
+  const [responsePreviewMode, setResponsePreviewMode] = React.useState<"typescript" | "jsonc">("typescript")
+
+  const { data: groups = [] } = useContractGroups(projectId)
+  const { mutate: create, isPending } = useCreateContract(projectId)
+  const { toast } = useToast()
+
+  const trimmedPath = path.trim()
+
+  const queryValidation = React.useMemo(
+    () => validateSchema(normalizeSchema(querySchema), "Query"),
+    [querySchema]
+  )
+  const parametersValidation = React.useMemo(
+    () => validateSchema(normalizeSchema(parametersSchema), "Parameters"),
+    [parametersSchema]
+  )
+  const headersValidation = React.useMemo(
+    () => validateSchema(normalizeSchema(headersSchema), "Headers"),
+    [headersSchema]
+  )
+  const authValidation = React.useMemo(
+    () => validateSchema(normalizeSchema(authSchema), "Authorization"),
+    [authSchema]
+  )
+  const requestValidation = React.useMemo(
+    () => validateSchema(normalizeSchema(requestSchema), "Request Body"),
+    [requestSchema]
+  )
+  const responseValidation = React.useMemo(
+    () => validateSchema(normalizeSchema(responseSchema), "Response"),
+    [responseSchema]
+  )
+
+  function handleSave() {
+    if (!trimmedPath) {
+      toast({ title: "Path cannot be empty", variant: "error" })
+      return
+    }
+    const normQuery = normalizeSchema(querySchema)
+    const normParams = normalizeSchema(parametersSchema)
+    const normHeaders = normalizeSchema(headersSchema)
+    const normAuth = normalizeSchema(authSchema)
+    const normReq = normalizeSchema(requestSchema)
+    const normRes = normalizeSchema(responseSchema)
+
+    const queryErr = validateSchema(normQuery, "Query").error
+    if (queryErr) { toast({ title: "Invalid schema", description: queryErr, variant: "error" }); return }
+    const paramsErr = validateSchema(normParams, "Parameters").error
+    if (paramsErr) { toast({ title: "Invalid schema", description: paramsErr, variant: "error" }); return }
+    const headersErr = validateSchema(normHeaders, "Headers").error
+    if (headersErr) { toast({ title: "Invalid schema", description: headersErr, variant: "error" }); return }
+    const authErr = validateSchema(normAuth, "Authorization").error
+    if (authErr) { toast({ title: "Invalid schema", description: authErr, variant: "error" }); return }
+    const reqErr = validateSchema(normReq, "Request Body").error
+    if (reqErr) { toast({ title: "Invalid schema", description: reqErr, variant: "error" }); return }
+    const resErr = validateSchema(normRes, "Response").error
+    if (resErr) { toast({ title: "Invalid schema", description: resErr, variant: "error" }); return }
+
+    create(
+      {
+        method,
+        path: trimmedPath,
+        groupId: groupId || null,
+        querySchema: normQuery,
+        parametersSchema: normParams,
+        headersSchema: normHeaders,
+        authSchema: normAuth,
+        requestBodyFormat,
+        requestSchema: normReq,
+        responseSchema: normRes,
+      },
+      {
+        onSuccess: (contract) => {
+          toast({ title: "Endpoint created", variant: "success" })
+          onCreated(contract.id, method, trimmedPath)
+        },
+        onError: (err) =>
+          toast({ title: "Could not create endpoint", description: err.message, variant: "error" }),
+      }
+    )
+  }
+
+  const queryCount = querySchema.fields.filter((f) => f.name.trim()).length
+  const parametersCount = parametersSchema.fields.filter((f) => f.name.trim()).length
+  const headersCount = headersSchema.fields.filter((f) => f.name.trim()).length
+  const authCount = authSchema.fields.filter((f) => f.name.trim()).length
+  const requestCount = requestSchema.fields.filter((f) => f.name.trim()).length
+  const responseCount = responseSchema.fields.filter((f) => f.name.trim()).length
+
+  return (
+    <div className="flex flex-1 flex-col min-h-0 overflow-y-auto">
+      {/* ── Action bar (mirrors ContractEditor's action bar) ── */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle bg-surface px-5 py-2.5 font-mono">
+        {/* Left: status badge */}
+        <Badge variant="draft">new</Badge>
+
+        {/* Right: group selector + preview toggle + save */}
+        <div className="flex items-center gap-1.5">
+          {groups.length > 0 && (
+            <select
+              value={groupId}
+              onChange={(e) => setGroupId(e.target.value)}
+              className="h-8 rounded border border-border-default bg-elevated px-2.5 font-mono text-xs text-text-secondary focus:border-accent focus:outline-none"
+            >
+              <option value="">No group</option>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
+          )}
+          {/* Preview toggle */}
+          <Button
+            variant="ghost"
+            size="icon"
+            title="Preview"
+            onClick={() => setActiveTab(activeTab === "preview" ? "query" : "preview")}
+            className={activeTab === "preview" ? "text-accent bg-accent/10" : ""}
+          >
+            <Eye size={13} />
+          </Button>
+          <Button
+            size="sm"
+            onClick={handleSave}
+            disabled={!trimmedPath || isPending}
+          >
+            <Plus size={12} />
+            {isPending ? "Saving..." : "Save endpoint"}
+          </Button>
+        </div>
+      </div>
+
+      {/* ── Schema tabs ── */}
+      <div className="flex-1 px-5 py-4 space-y-4">
+        {/* Method + Path bar (mirrors ContractEditor's Definition section) */}
+        <section className="overflow-hidden rounded-md border border-border-subtle bg-surface font-mono shadow-brutal-sm">
+          <div className="border-b border-border-subtle bg-elevated px-4 py-3">
+            <div className="flex flex-wrap items-stretch gap-2">
+              <div className={["flex h-10 min-w-20 items-center justify-center rounded-sm", METHOD_COLORS[method]].join(" ")}>
+                <select
+                  value={method}
+                  onChange={(e) => setMethod(e.target.value as HttpMethod)}
+                  className={["h-10 min-w-20 rounded-sm bg-transparent px-3 text-center font-mono text-[11px] font-semibold uppercase tracking-[0.16em] transition-colors focus:outline-none", METHOD_COLORS[method]].join(" ")}
+                >
+                  {HTTP_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+              <input
+                type="text"
+                placeholder="/api/endpoint"
+                value={path}
+                onChange={(e) => setPath(e.target.value)}
+                autoFocus
+                onKeyDown={(e) => { if (e.key === "Enter") handleSave() }}
+                className="flex min-h-10 min-w-[220px] flex-1 rounded-sm border border-border-subtle bg-base px-3 font-mono text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+              />
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </section>
+
+        {/* Tab strip — hidden when preview is active */}
+        {activeTab !== "preview" && (
+          <div className="flex items-center gap-0 border-b border-border-subtle">
+            {(
+              [
+                { key: "query",      label: "Query",         count: queryCount },
+                { key: "parameters", label: "Parameters",    count: parametersCount },
+                { key: "headers",    label: "Headers",       count: headersCount },
+                { key: "auth",       label: "Authorization", count: authCount },
+                { key: "body",       label: "Body",          count: requestCount },
+                { key: "response",   label: "Response",      count: responseCount },
+              ] as const
+            ).map(({ key, label, count }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setActiveTab(key)}
+                className={[
+                  "relative px-4 py-2 font-mono text-xs font-medium transition-colors",
+                  activeTab === key
+                    ? "text-text-primary"
+                    : "text-text-muted hover:text-text-secondary",
+                ].join(" ")}
+              >
+                {label}
+                {count > 0 && (
+                  <span className="ml-1.5 tabular-nums text-[10px] text-text-muted">{count}</span>
+                )}
+                {activeTab === key && (
+                  <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-accent" />
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Query tab */}
+        {activeTab === "query" && (
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)] xl:items-start">
+            <SchemaEditor
+              value={querySchema}
+              onChange={setQuerySchema}
+              placeholder="queryKey"
+              error={queryValidation.error}
+              invalidRowIndexes={queryValidation.invalidRowIndexes}
+            />
+            <SchemaLivePreview
+              label="Preview"
+              schema={querySchema}
+              emptyMessage="Add query fields to generate a live preview"
+              mode={queryPreviewMode}
+              onModeChange={setQueryPreviewMode}
+            />
+          </div>
+        )}
+
+        {/* Parameters tab */}
+        {activeTab === "parameters" && (
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)] xl:items-start">
+            <SchemaEditor
+              value={parametersSchema}
+              onChange={setParametersSchema}
+              placeholder="paramName"
+              error={parametersValidation.error}
+              invalidRowIndexes={parametersValidation.invalidRowIndexes}
+            />
+            <SchemaLivePreview
+              label="Preview"
+              schema={parametersSchema}
+              emptyMessage="Add path parameters to generate a live preview"
+              mode={queryPreviewMode}
+              onModeChange={setQueryPreviewMode}
+            />
+          </div>
+        )}
+
+        {/* Headers tab */}
+        {activeTab === "headers" && (
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)] xl:items-start">
+            <SchemaEditor
+              value={headersSchema}
+              onChange={setHeadersSchema}
+              placeholder="Header-Name"
+              error={headersValidation.error}
+              invalidRowIndexes={headersValidation.invalidRowIndexes}
+            />
+            <SchemaLivePreview
+              label="Preview"
+              schema={headersSchema}
+              emptyMessage="Add headers to generate a live preview"
+              mode={queryPreviewMode}
+              onModeChange={setQueryPreviewMode}
+            />
+          </div>
+        )}
+
+        {/* Authorization tab */}
+        {activeTab === "auth" && (
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)] xl:items-start">
+            <SchemaEditor
+              value={authSchema}
+              onChange={setAuthSchema}
+              placeholder="fieldName"
+              error={authValidation.error}
+              invalidRowIndexes={authValidation.invalidRowIndexes}
+            />
+            <SchemaLivePreview
+              label="Preview"
+              schema={authSchema}
+              emptyMessage="Add authorization fields to generate a live preview"
+              mode={queryPreviewMode}
+              onModeChange={setQueryPreviewMode}
+            />
+          </div>
+        )}
+
+        {/* Body tab */}
+        {activeTab === "body" && (
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)] xl:items-start">
+            <div className="space-y-3">
+              <section className="overflow-hidden rounded-md border border-border-subtle bg-surface font-mono shadow-brutal-sm">
+                <div className="border-b border-border-subtle bg-elevated px-3 py-2">
+                  <span className="font-mono text-[10px] font-medium uppercase tracking-[0.12em] text-text-muted">Body Format</span>
+                </div>
+                <div className="flex gap-2 p-3">
+                  {(["json", "form-data"] as const).map((fmt) => (
+                    <button
+                      key={fmt}
+                      type="button"
+                      onClick={() => setRequestBodyFormat(fmt)}
+                      className={[
+                        "rounded-md border px-3 py-1.5 font-mono text-xs uppercase tracking-[0.12em] transition-colors",
+                        requestBodyFormat === fmt
+                          ? "border-accent/30 bg-accent/12 text-accent"
+                          : "border-border-subtle text-text-muted hover:border-border-default hover:text-text-primary",
+                      ].join(" ")}
+                    >
+                      {fmt === "json" ? "JSON" : "Form Data"}
+                    </button>
+                  ))}
+                </div>
+              </section>
+              <SchemaEditor
+                value={requestSchema}
+                onChange={setRequestSchema}
+                placeholder={requestBodyFormat === "form-data" ? "fieldName" : (requestPreviewMode === "jsonc" ? "parent.child.field" : "fieldName")}
+                error={requestValidation.error}
+                invalidRowIndexes={requestValidation.invalidRowIndexes}
+              />
+            </div>
+            <SchemaLivePreview
+              label="Preview"
+              schema={requestSchema}
+              emptyMessage="Add request fields to generate a live preview"
+              mode={requestPreviewMode}
+              onModeChange={setRequestPreviewMode}
+            />
+          </div>
+        )}
+
+        {/* Response tab */}
+        {activeTab === "response" && (
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)] xl:items-start">
+            <SchemaEditor
+              value={responseSchema}
+              onChange={setResponseSchema}
+              placeholder={responsePreviewMode === "jsonc" ? "parent.child.field" : "fieldName"}
+              error={responseValidation.error}
+              invalidRowIndexes={responseValidation.invalidRowIndexes}
+            />
+            <SchemaLivePreview
+              label="Preview"
+              schema={responseSchema}
+              emptyMessage="Add response fields to generate a live preview"
+              mode={responsePreviewMode}
+              onModeChange={setResponsePreviewMode}
+            />
+          </div>
+        )}
+
+        {/* Preview tab */}
+        {activeTab === "preview" && (
+          <JsonPreview
+            querySchema={querySchema}
+            requestBodyFormat={requestBodyFormat}
+            requestSchema={requestSchema}
+            responseSchema={responseSchema}
+            method={method}
+            path={path}
+          />
+        )}
+      </div>
     </div>
   )
 }
@@ -798,105 +991,6 @@ function DeleteGroupDialog({ projectId, group, onClose }: { projectId: string; g
   )
 }
 
-function NewContractDialog({ projectId, groups, onClose }: { projectId: string; groups: ContractGroup[]; onClose: () => void }) {
-  const [method, setMethod] = React.useState<HttpMethod>("GET")
-  const [path, setPath] = React.useState("")
-  const [groupId, setGroupId] = React.useState("")
-  const { mutate: create, isPending } = useCreateContract(projectId)
-  const { toast } = useToast()
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    const p = path.trim()
-    if (!p) return
-    create(
-      { method, path: p, groupId: groupId || null },
-      {
-        onSuccess: () => { toast({ title: "Endpoint created", variant: "success" }); onClose() },
-        onError: (err) => toast({ title: "Error", description: err.message, variant: "error" }),
-      }
-    )
-  }
 
-  return (
-    <DialogContent>
-      <DialogHeader><DialogTitle>Add endpoint</DialogTitle></DialogHeader>
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <div className="flex gap-2">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-text-secondary">Method</label>
-            <select value={method} onChange={(e) => setMethod(e.target.value as HttpMethod)} className={SELECT_CLS}>
-              {HTTP_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
-            </select>
-          </div>
-          <div className="flex-1">
-            <Input label="Path" placeholder="/api/users" value={path} onChange={(e) => setPath(e.target.value)} required autoFocus />
-          </div>
-        </div>
 
-        {groups.length > 0 && (
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-text-secondary">Group</label>
-            <select value={groupId} onChange={(e) => setGroupId(e.target.value)} className={SELECT_CLS}>
-              <option value="">No group</option>
-              {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-            </select>
-          </div>
-        )}
-
-        <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
-          <Button type="submit" size="sm" disabled={isPending || !path.trim()}>
-            {isPending ? "Creating..." : "Add endpoint"}
-          </Button>
-        </div>
-      </form>
-    </DialogContent>
-  )
-}
-
-// ─── Empty / Error / Skeleton ──────────────────────────────────────────────────
-
-function EmptyState({ onNew }: { onNew: () => void }) {
-  return (
-    <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-dashed border-border-default py-20 text-center">
-      <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border-default bg-elevated">
-        <span className="font-mono text-xs font-semibold text-text-muted">API</span>
-      </div>
-      <div>
-        <p className="text-sm font-medium text-text-primary">No endpoints yet</p>
-        <p className="text-xs text-text-muted mt-1">Add your first endpoint to start defining the contract</p>
-      </div>
-      <Button size="sm" onClick={onNew}>
-        <Plus size={12} />
-        Add endpoint
-      </Button>
-    </div>
-  )
-}
-
-function ErrorState({ message }: { message: string }) {
-  return (
-    <div className="flex flex-col items-center gap-2 py-16 text-center">
-      <AlertTriangle size={16} className="text-error" />
-      <p className="text-sm text-text-secondary">{message}</p>
-    </div>
-  )
-}
-
-function ContractListSkeleton() {
-  return (
-    <div className="overflow-hidden rounded-md border border-border-subtle">
-      {Array.from({ length: 4 }).map((_, i) => (
-        <div
-          key={i}
-          className={["flex items-center gap-3 px-3 py-2.5", i < 3 ? "border-b border-border-subtle" : ""].join(" ")}
-        >
-          <div className="h-4 w-12 rounded bg-overlay animate-pulse" />
-          <div className="h-3 w-44 rounded bg-overlay animate-pulse" />
-          <div className="ml-auto h-4 w-14 rounded bg-overlay animate-pulse" />
-        </div>
-      ))}
-    </div>
-  )
-}

@@ -23,6 +23,9 @@ export interface Contract {
   path: string
   status: ContractStatus
   querySchema: ContractSchema
+  parametersSchema: ContractSchema
+  headersSchema: ContractSchema
+  authSchema: ContractSchema
   requestBodyFormat: RequestBodyFormat
   requestSchema: ContractSchema
   responseSchema: ContractSchema
@@ -35,6 +38,9 @@ export interface CreateContractInput {
   path: string
   groupId?: string | null
   querySchema?: ContractSchema
+  parametersSchema?: ContractSchema
+  headersSchema?: ContractSchema
+  authSchema?: ContractSchema
   requestBodyFormat?: RequestBodyFormat
   requestSchema?: ContractSchema
   responseSchema?: ContractSchema
@@ -46,6 +52,9 @@ export interface UpdateContractInput {
   groupId?: string | null
   status?: ContractStatus
   querySchema?: ContractSchema
+  parametersSchema?: ContractSchema
+  headersSchema?: ContractSchema
+  authSchema?: ContractSchema
   requestBodyFormat?: RequestBodyFormat
   requestSchema?: ContractSchema
   responseSchema?: ContractSchema

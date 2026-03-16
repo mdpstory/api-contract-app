@@ -61,6 +61,8 @@ export type AppSidebarContext =
       onSelectGroup?: (group: GroupFilter) => void;
       onCreateGroup?: () => void;
       onMoveContractGroup?: (contractId: string, groupId: string | null) => void;
+      /** When provided, clicking a contract item calls this instead of navigating to the contract route. */
+      onOpenContract?: (contractId: string) => void;
       isMovingContract?: boolean;
       totalCount?: number;
       groupCounts?: Map<string, number>;
@@ -198,7 +200,7 @@ export function AppSidebar({
 
   function handleSidebarContractDragStart(
     contractId: string,
-    event: React.DragEvent<HTMLAnchorElement>,
+    event: React.DragEvent<HTMLElement>,
   ) {
     if (!isProject || sidebarContext.isMovingContract) return;
 
@@ -481,47 +483,67 @@ export function AppSidebar({
                         </SidebarMenuBadge>
                         {isExpanded ? (
                           <SidebarMenuSub className="ml-3.5 mr-0 pr-0">
-                            {groupContracts.length > 0 ? (
+                            {                            groupContracts.length > 0 ? (
                               groupContracts.map((contract) => (
                                 <SidebarMenuSubItem key={contract.id}>
-                                  <SidebarMenuSubButton
-                                    asChild
-                                    isActive={sidebarContext.activeContractId === contract.id}
-                                    className="w-full"
-                                  >
-                                    <Link
-                                      to="/projects/$projectId/contracts/$contractId"
-                                      params={{
-                                        projectId: projectId!,
-                                        contractId: contract.id,
-                                      }}
-                                      draggable={!sidebarContext.isMovingContract}
-                                      onDragStart={(event) =>
-                                        handleSidebarContractDragStart(contract.id, event)
-                                      }
-                                      onDragEnd={clearSidebarDragState}
-                                      search={{
-                                        listSection: "endpoints",
-                                        listFilter: endpointSearch.filter,
-                                        listQ: endpointSearch.q,
-                                        listGroup: endpointSearch.group,
-                                        tab: "definition",
-                                        definitionTab: "request",
-                                      }}
-                                    >
-                                      <span
-                                        className={[
-                                          "w-10 shrink-0 rounded-none bg-sidebar-accent/40 px-1 py-0.5 text-center font-mono text-[10px] font-semibold",
-                                          METHOD_STYLES[contract.method],
-                                        ].join(" ")}
-                                      >
-                                        {contract.method}
-                                      </span>
-                                      <span className="truncate font-mono text-[11px]">
-                                        {contract.path}
-                                      </span>
-                                    </Link>
-                                  </SidebarMenuSubButton>
+                                   <SidebarMenuSubButton
+                                     asChild={!sidebarContext.onOpenContract}
+                                     isActive={sidebarContext.activeContractId === contract.id}
+                                     className="w-full"
+                                     onClick={sidebarContext.onOpenContract ? () => sidebarContext.onOpenContract!(contract.id) : undefined}
+                                     draggable={sidebarContext.onOpenContract ? !sidebarContext.isMovingContract : undefined}
+                                     onDragStart={sidebarContext.onOpenContract ? (event: React.DragEvent<HTMLButtonElement>) => handleSidebarContractDragStart(contract.id, event) : undefined}
+                                     onDragEnd={sidebarContext.onOpenContract ? clearSidebarDragState : undefined}
+                                   >
+                                     {sidebarContext.onOpenContract ? (
+                                       <>
+                                         <span
+                                           className={[
+                                             "w-10 shrink-0 rounded-none bg-sidebar-accent/40 px-1 py-0.5 text-center font-mono text-[10px] font-semibold",
+                                             METHOD_STYLES[contract.method],
+                                           ].join(" ")}
+                                         >
+                                           {contract.method}
+                                         </span>
+                                         <span className="truncate font-mono text-[11px]">
+                                           {contract.path}
+                                         </span>
+                                       </>
+                                     ) : (
+                                       <Link
+                                         to="/projects/$projectId/contracts/$contractId"
+                                         params={{
+                                           projectId: projectId!,
+                                           contractId: contract.id,
+                                         }}
+                                         draggable={!sidebarContext.isMovingContract}
+                                         onDragStart={(event) =>
+                                           handleSidebarContractDragStart(contract.id, event)
+                                         }
+                                         onDragEnd={clearSidebarDragState}
+                                         search={{
+                                           listSection: "endpoints",
+                                           listFilter: endpointSearch.filter,
+                                           listQ: endpointSearch.q,
+                                           listGroup: endpointSearch.group,
+                                           tab: "definition",
+                                           definitionTab: "request",
+                                         }}
+                                       >
+                                         <span
+                                           className={[
+                                             "w-10 shrink-0 rounded-none bg-sidebar-accent/40 px-1 py-0.5 text-center font-mono text-[10px] font-semibold",
+                                             METHOD_STYLES[contract.method],
+                                           ].join(" ")}
+                                         >
+                                           {contract.method}
+                                         </span>
+                                         <span className="truncate font-mono text-[11px]">
+                                           {contract.path}
+                                         </span>
+                                       </Link>
+                                     )}
+                                   </SidebarMenuSubButton>
                                 </SidebarMenuSubItem>
                               ))
                             ) : (
@@ -570,46 +592,66 @@ export function AppSidebar({
                       </SidebarMenuBadge>
                       {isUngroupedExpanded ? (
                         <SidebarMenuSub className="ml-3.5 mr-0 pr-0">
-                          {filteredUngroupedContracts.length > 0 ? (
+                          {                          filteredUngroupedContracts.length > 0 ? (
                             filteredUngroupedContracts.map((contract) => (
                               <SidebarMenuSubItem key={contract.id}>
-                                <SidebarMenuSubButton
-                                  asChild
-                                  isActive={sidebarContext.activeContractId === contract.id}
-                                  className="w-full"
-                                >
-                                  <Link
-                                    to="/projects/$projectId/contracts/$contractId"
-                                    params={{
-                                      projectId: projectId!,
-                                      contractId: contract.id,
-                                    }}
-                                    draggable={!sidebarContext.isMovingContract}
-                                    onDragStart={(event) =>
-                                      handleSidebarContractDragStart(contract.id, event)
-                                    }
-                                    onDragEnd={clearSidebarDragState}
-                                    search={{
-                                      listSection: "endpoints",
-                                      listFilter: endpointSearch.filter,
-                                      listQ: endpointSearch.q,
-                                      listGroup: endpointSearch.group,
-                                      tab: "definition",
-                                      definitionTab: "request",
-                                    }}
-                                  >
-                                    <span
-                                      className={[
-                                        "w-10 shrink-0 rounded-none bg-sidebar-accent/40 px-1 py-0.5 text-center font-mono text-[10px] font-semibold",
-                                        METHOD_STYLES[contract.method],
-                                      ].join(" ")}
+                                 <SidebarMenuSubButton
+                                   asChild={!sidebarContext.onOpenContract}
+                                   isActive={sidebarContext.activeContractId === contract.id}
+                                   className="w-full"
+                                   onClick={sidebarContext.onOpenContract ? () => sidebarContext.onOpenContract!(contract.id) : undefined}
+                                   draggable={sidebarContext.onOpenContract ? !sidebarContext.isMovingContract : undefined}
+                                   onDragStart={sidebarContext.onOpenContract ? (event: React.DragEvent<HTMLButtonElement>) => handleSidebarContractDragStart(contract.id, event) : undefined}
+                                   onDragEnd={sidebarContext.onOpenContract ? clearSidebarDragState : undefined}
+                                 >
+                                  {sidebarContext.onOpenContract ? (
+                                    <>
+                                      <span
+                                        className={[
+                                          "w-10 shrink-0 rounded-none bg-sidebar-accent/40 px-1 py-0.5 text-center font-mono text-[10px] font-semibold",
+                                          METHOD_STYLES[contract.method],
+                                        ].join(" ")}
+                                      >
+                                        {contract.method}
+                                      </span>
+                                      <span className="truncate font-mono text-[11px]">
+                                        {contract.path}
+                                      </span>
+                                    </>
+                                  ) : (
+                                    <Link
+                                      to="/projects/$projectId/contracts/$contractId"
+                                      params={{
+                                        projectId: projectId!,
+                                        contractId: contract.id,
+                                      }}
+                                      draggable={!sidebarContext.isMovingContract}
+                                      onDragStart={(event) =>
+                                        handleSidebarContractDragStart(contract.id, event)
+                                      }
+                                      onDragEnd={clearSidebarDragState}
+                                      search={{
+                                        listSection: "endpoints",
+                                        listFilter: endpointSearch.filter,
+                                        listQ: endpointSearch.q,
+                                        listGroup: endpointSearch.group,
+                                        tab: "definition",
+                                        definitionTab: "request",
+                                      }}
                                     >
-                                      {contract.method}
-                                    </span>
-                                    <span className="truncate font-mono text-[11px]">
-                                      {contract.path}
-                                    </span>
-                                  </Link>
+                                      <span
+                                        className={[
+                                          "w-10 shrink-0 rounded-none bg-sidebar-accent/40 px-1 py-0.5 text-center font-mono text-[10px] font-semibold",
+                                          METHOD_STYLES[contract.method],
+                                        ].join(" ")}
+                                      >
+                                        {contract.method}
+                                      </span>
+                                      <span className="truncate font-mono text-[11px]">
+                                        {contract.path}
+                                      </span>
+                                    </Link>
+                                  )}
                                 </SidebarMenuSubButton>
                               </SidebarMenuSubItem>
                             ))

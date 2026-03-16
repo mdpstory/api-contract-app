@@ -145,11 +145,7 @@ function ProjectSettingsPage() {
         projectDescription: project?.description,
         active: "settings",
       }}
-        breadcrumbs={[
-          { label: "Projects", href: "/dashboard" },
-          { label: project?.name ?? "...", href: `/projects/${projectId}/endpoints` },
-          { label: "Settings" },
-        ]}
+
     >
       <div className="min-h-[calc(100vh-3rem)] min-w-0 max-w-2xl space-y-8 p-5 sm:p-7 lg:p-10">
           <div className="space-y-1.5">

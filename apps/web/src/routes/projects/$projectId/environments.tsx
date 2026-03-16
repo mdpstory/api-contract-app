@@ -67,11 +67,7 @@ function EnvironmentsPage() {
         projectDescription: project?.description,
         active: "environments",
       }}
-        breadcrumbs={[
-          { label: "Projects", href: "/dashboard" },
-          { label: project?.name ?? "...", href: `/projects/${projectId}/endpoints` },
-          { label: "Environments" },
-        ]}
+
     >
       <div className="min-h-[calc(100vh-3rem)] min-w-0 max-w-3xl space-y-8 p-5 sm:p-7 lg:p-10">
           {/* Header */}

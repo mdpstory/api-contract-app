@@ -49,6 +49,9 @@ const createContractSchema = z.object({
   path: z.string().min(1),
   groupId: z.string().min(1).nullable().optional(),
   querySchema: contractSchemaSchema.optional(),
+  parametersSchema: contractSchemaSchema.optional(),
+  headersSchema: contractSchemaSchema.optional(),
+  authSchema: contractSchemaSchema.optional(),
   requestBodyFormat: z.enum(["json", "form-data"]).optional(),
   requestSchema: contractSchemaSchema.optional(),
   responseSchema: contractSchemaSchema.optional(),
@@ -59,6 +62,9 @@ const updateContractSchema = z.object({
   path: z.string().min(1).optional(),
   groupId: z.string().min(1).nullable().optional(),
   querySchema: contractSchemaSchema.optional(),
+  parametersSchema: contractSchemaSchema.optional(),
+  headersSchema: contractSchemaSchema.optional(),
+  authSchema: contractSchemaSchema.optional(),
   requestBodyFormat: z.enum(["json", "form-data"]).optional(),
   requestSchema: contractSchemaSchema.optional(),
   responseSchema: contractSchemaSchema.optional(),
@@ -243,6 +249,9 @@ function rowToContract(row: typeof contracts.$inferSelect): Contract {
     path: row.path,
     status: row.status as Contract["status"],
     querySchema: JSON.parse(row.querySchema) as ContractSchema,
+    parametersSchema: JSON.parse(row.parametersSchema) as ContractSchema,
+    headersSchema: JSON.parse(row.headersSchema) as ContractSchema,
+    authSchema: JSON.parse(row.authSchema) as ContractSchema,
     requestBodyFormat: row.requestBodyFormat as RequestBodyFormat,
     requestSchema: JSON.parse(row.requestSchema) as ContractSchema,
     responseSchema: JSON.parse(row.responseSchema) as ContractSchema,
@@ -302,24 +311,30 @@ export const contractRoutes = new Hono<AuthEnv>()
 
       const contractId = generateId()
       const querySchema = normalizeSchema(body.querySchema ?? { fields: [] })
+      const parametersSchema = normalizeSchema(body.parametersSchema ?? { fields: [] })
+      const headersSchema = normalizeSchema(body.headersSchema ?? { fields: [] })
+      const authSchema = normalizeSchema(body.authSchema ?? { fields: [] })
       const requestBodyFormat = body.requestBodyFormat ?? "json"
       const requestSchema = normalizeSchema(body.requestSchema ?? { fields: [] })
       const responseSchema = normalizeSchema(body.responseSchema ?? { fields: [] })
 
       const querySchemaError = getSchemaValidationError(querySchema, "Query")
-      if (querySchemaError) {
-        return c.json({ error: querySchemaError }, 400)
-      }
+      if (querySchemaError) return c.json({ error: querySchemaError }, 400)
+
+      const parametersSchemaError = getSchemaValidationError(parametersSchema, "Parameters")
+      if (parametersSchemaError) return c.json({ error: parametersSchemaError }, 400)
+
+      const headersSchemaError = getSchemaValidationError(headersSchema, "Headers")
+      if (headersSchemaError) return c.json({ error: headersSchemaError }, 400)
+
+      const authSchemaError = getSchemaValidationError(authSchema, "Authorization")
+      if (authSchemaError) return c.json({ error: authSchemaError }, 400)
 
       const requestSchemaError = getSchemaValidationError(requestSchema, "Request Body")
-      if (requestSchemaError) {
-        return c.json({ error: requestSchemaError }, 400)
-      }
+      if (requestSchemaError) return c.json({ error: requestSchemaError }, 400)
 
       const responseSchemaError = getSchemaValidationError(responseSchema, "Response")
-      if (responseSchemaError) {
-        return c.json({ error: responseSchemaError }, 400)
-      }
+      if (responseSchemaError) return c.json({ error: responseSchemaError }, 400)
 
       if (await findDuplicateContract(projectId, body.method, normalizedPath)) {
         return c.json(
@@ -339,6 +354,9 @@ export const contractRoutes = new Hono<AuthEnv>()
           status: "draft",
           requestBodyFormat,
           querySchema: JSON.stringify(querySchema),
+          parametersSchema: JSON.stringify(parametersSchema),
+          headersSchema: JSON.stringify(headersSchema),
+          authSchema: JSON.stringify(authSchema),
           requestSchema: JSON.stringify(requestSchema),
           responseSchema: JSON.stringify(responseSchema),
         })
@@ -440,6 +458,15 @@ export const contractRoutes = new Hono<AuthEnv>()
       const nextQuerySchema = normalizeSchema(
         body.querySchema ?? (JSON.parse(existing.querySchema) as ContractSchema)
       )
+      const nextParametersSchema = normalizeSchema(
+        body.parametersSchema ?? (JSON.parse(existing.parametersSchema) as ContractSchema)
+      )
+      const nextHeadersSchema = normalizeSchema(
+        body.headersSchema ?? (JSON.parse(existing.headersSchema) as ContractSchema)
+      )
+      const nextAuthSchema = normalizeSchema(
+        body.authSchema ?? (JSON.parse(existing.authSchema) as ContractSchema)
+      )
       const nextRequestSchema = normalizeSchema(
         body.requestSchema ?? (JSON.parse(existing.requestSchema) as ContractSchema)
       )
@@ -448,19 +475,22 @@ export const contractRoutes = new Hono<AuthEnv>()
       )
 
       const querySchemaError = getSchemaValidationError(nextQuerySchema, "Query")
-      if (querySchemaError) {
-        return c.json({ error: querySchemaError }, 400)
-      }
+      if (querySchemaError) return c.json({ error: querySchemaError }, 400)
+
+      const parametersSchemaError = getSchemaValidationError(nextParametersSchema, "Parameters")
+      if (parametersSchemaError) return c.json({ error: parametersSchemaError }, 400)
+
+      const headersSchemaError = getSchemaValidationError(nextHeadersSchema, "Headers")
+      if (headersSchemaError) return c.json({ error: headersSchemaError }, 400)
+
+      const authSchemaError = getSchemaValidationError(nextAuthSchema, "Authorization")
+      if (authSchemaError) return c.json({ error: authSchemaError }, 400)
 
       const requestSchemaError = getSchemaValidationError(nextRequestSchema, "Request Body")
-      if (requestSchemaError) {
-        return c.json({ error: requestSchemaError }, 400)
-      }
+      if (requestSchemaError) return c.json({ error: requestSchemaError }, 400)
 
       const responseSchemaError = getSchemaValidationError(nextResponseSchema, "Response")
-      if (responseSchemaError) {
-        return c.json({ error: responseSchemaError }, 400)
-      }
+      if (responseSchemaError) return c.json({ error: responseSchemaError }, 400)
 
       if (await findDuplicateContract(projectId, nextMethod, nextPath, contractId)) {
         return c.json(
@@ -487,6 +517,15 @@ export const contractRoutes = new Hono<AuthEnv>()
             }),
             ...(body.querySchema !== undefined && {
               querySchema: JSON.stringify(nextQuerySchema),
+            }),
+            ...(body.parametersSchema !== undefined && {
+              parametersSchema: JSON.stringify(nextParametersSchema),
+            }),
+            ...(body.headersSchema !== undefined && {
+              headersSchema: JSON.stringify(nextHeadersSchema),
+            }),
+            ...(body.authSchema !== undefined && {
+              authSchema: JSON.stringify(nextAuthSchema),
             }),
             ...(body.requestSchema !== undefined && {
               requestSchema: JSON.stringify(nextRequestSchema),
