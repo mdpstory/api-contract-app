@@ -9,7 +9,7 @@ import {
   Plus,
   AlertTriangle,
   Eye,
-  FileSliders,
+  BookOpen,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { JsonPreview } from "@/features/contracts/components/json-preview"
@@ -110,19 +110,26 @@ export function ProjectSectionPage({
     )
     if (existing) {
       setActiveTabId(existing.id)
-      return
+    } else {
+      const contract = contracts.find((c) => c.id === contractId)
+      if (!contract) return
+      const tab: RequestTab = {
+        kind: "contract",
+        id: contractId,
+        contractId,
+        label: contract.path,
+        method: contract.method,
+      }
+      setOpenTabs((prev) => [...prev, tab])
+      setActiveTabId(tab.id)
     }
-    const contract = contracts.find((c) => c.id === contractId)
-    if (!contract) return
-    const tab: RequestTab = {
-      kind: "contract",
-      id: contractId,
-      contractId,
-      label: contract.path,
-      method: contract.method,
+    if (activeSection === "preview") {
+      void navigate({
+        to: "/projects/$projectId/endpoints",
+        params: { projectId },
+        search: searchState,
+      })
     }
-    setOpenTabs((prev) => [...prev, tab])
-    setActiveTabId(tab.id)
   }
 
   function openBlankTab() {
@@ -240,52 +247,35 @@ export function ProjectSectionPage({
           return active?.kind === "contract" ? active.contractId : undefined
         })(),
       }}
+      headerActions={
+        <Link
+          to={activeSection === "preview"
+            ? "/projects/$projectId/endpoints"
+            : "/projects/$projectId/preview"
+          }
+          params={{ projectId }}
+          search={activeSection === "preview" ? endpointSearchParams : undefined}
+          title={activeSection === "preview" ? "Back to editor" : "Preview all endpoints"}
+          className={[
+            "flex h-7 w-7 items-center justify-center rounded transition-colors",
+            activeSection === "preview"
+              ? "text-accent bg-accent/10"
+              : "text-text-muted hover:text-text-secondary hover:bg-overlay",
+          ].join(" ")}
+        >
+          <BookOpen size={13} />
+        </Link>
+      }
     >
       <div className="min-h-[calc(100vh-3rem)] flex flex-col">
-          {/* Top toolbar */}
-          <div className="flex items-center gap-0 border-b border-border-subtle bg-surface">
-            {/* Section switcher */}
-            <Link
-              to="/projects/$projectId/endpoints"
-              params={{ projectId }}
-              search={endpointSearchParams}
-              className={[
-                "relative flex items-center gap-1.5 px-5 py-3 font-mono text-xs font-medium transition-colors",
-                activeSection === "endpoints"
-                  ? "text-text-primary"
-                  : "text-text-muted hover:text-text-secondary",
-              ].join(" ")}
-            >
-              Endpoints
-              {contracts.length > 0 && (
-                <span className="tabular-nums text-[10px] text-text-muted">{contracts.length}</span>
-              )}
-              {activeSection === "endpoints" && (
-                <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-accent" />
-              )}
-            </Link>
-            <Link
-              to="/projects/$projectId/preview"
-              params={{ projectId }}
-              className={[
-                "relative flex items-center gap-1.5 px-5 py-3 font-mono text-xs font-medium transition-colors",
-                activeSection === "preview"
-                  ? "text-text-primary"
-                  : "text-text-muted hover:text-text-secondary",
-              ].join(" ")}
-            >
-              <Eye size={11} />
-              Preview
-              {activeSection === "preview" && (
-                <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-accent" />
-              )}
-            </Link>
-          </div>
-
           {/* Content */}
-          {activeSection === "endpoints" ? (
+          {activeSection === "preview" ? (
+            <div className="flex-1 p-5">
+              <SwaggerProjectPreview contracts={contracts} groups={groups} />
+            </div>
+          ) : (
             <div className="flex flex-col flex-1 min-h-0">
-              {/* Postman-style tab bar */}
+              {/* Tab bar */}
               <TabBar
                 tabs={openTabs}
                 activeTabId={activeTabId}
@@ -294,29 +284,8 @@ export function ProjectSectionPage({
                 onNew={openBlankTab}
               />
 
-              {/* Tab content area */}
-              {activeTabId === null ? (
-                /* No tabs open — welcome state */
-                <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center py-20">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border-default bg-elevated">
-                    <FileSliders size={16} className="text-text-muted" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-text-primary">Open an endpoint to get started</p>
-                    <p className="mt-1 text-xs text-text-muted">
-                      Select an endpoint from the sidebar, or click{" "}
-                      <button
-                        type="button"
-                        onClick={openBlankTab}
-                        className="text-accent hover:underline"
-                      >
-                        +
-                      </button>{" "}
-                      to open a new blank tab
-                    </p>
-                  </div>
-                </div>
-              ) : (() => {
+              {/* Tab content */}
+              {(() => {
                 const activeTab = openTabs.find((t) => t.id === activeTabId)
                 if (!activeTab) return null
 
@@ -326,7 +295,6 @@ export function ProjectSectionPage({
                       key={activeTab.id}
                       projectId={projectId}
                       onCreated={(contractId, method, path) => {
-                        // Replace the blank tab with a contract tab in-place
                         const newTab: RequestTab = {
                           kind: "contract",
                           id: contractId,
@@ -352,11 +320,6 @@ export function ProjectSectionPage({
                   />
                 )
               })()}
-            </div>
-          ) : (
-            /* Preview section */
-            <div className="flex-1 p-5">
-              <SwaggerProjectPreview contracts={contracts} groups={groups} />
             </div>
           )}
       </div>
@@ -654,31 +617,33 @@ function BlankTab({
 
       {/* ── Schema tabs ── */}
       <div className="flex-1 px-5 py-4 space-y-4">
-        {/* Method + Path bar (mirrors ContractEditor's Definition section) */}
-        <section className="overflow-hidden rounded-md border border-border-subtle bg-surface font-mono shadow-brutal-sm">
-          <div className="border-b border-border-subtle bg-elevated px-4 py-3">
-            <div className="flex flex-wrap items-stretch gap-2">
-              <div className={["flex h-10 min-w-20 items-center justify-center rounded-sm", METHOD_COLORS[method]].join(" ")}>
-                <select
-                  value={method}
-                  onChange={(e) => setMethod(e.target.value as HttpMethod)}
-                  className={["h-10 min-w-20 rounded-sm bg-transparent px-3 text-center font-mono text-[11px] font-semibold uppercase tracking-[0.16em] transition-colors focus:outline-none", METHOD_COLORS[method]].join(" ")}
-                >
-                  {HTTP_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
-                </select>
+        {/* Method + Path bar — hidden when preview is active */}
+        {activeTab !== "preview" && (
+          <section className="overflow-hidden rounded-md border border-border-subtle bg-surface font-mono shadow-brutal-sm">
+            <div className="border-b border-border-subtle bg-elevated px-4 py-3">
+              <div className="flex flex-wrap items-stretch gap-2">
+                <div className={["flex h-10 min-w-20 items-center justify-center rounded-sm", METHOD_COLORS[method]].join(" ")}>
+                  <select
+                    value={method}
+                    onChange={(e) => setMethod(e.target.value as HttpMethod)}
+                    className={["h-10 min-w-20 rounded-sm bg-transparent px-3 text-center font-mono text-[11px] font-semibold uppercase tracking-[0.16em] transition-colors focus:outline-none", METHOD_COLORS[method]].join(" ")}
+                  >
+                    {HTTP_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+                <input
+                  type="text"
+                  placeholder="/api/endpoint"
+                  value={path}
+                  onChange={(e) => setPath(e.target.value)}
+                  autoFocus
+                  onKeyDown={(e) => { if (e.key === "Enter") handleSave() }}
+                  className="flex min-h-10 min-w-[220px] flex-1 rounded-sm border border-border-subtle bg-base px-3 font-mono text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                />
               </div>
-              <input
-                type="text"
-                placeholder="/api/endpoint"
-                value={path}
-                onChange={(e) => setPath(e.target.value)}
-                autoFocus
-                onKeyDown={(e) => { if (e.key === "Enter") handleSave() }}
-                className="flex min-h-10 min-w-[220px] flex-1 rounded-sm border border-border-subtle bg-base px-3 font-mono text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-              />
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         {/* Tab strip — hidden when preview is active */}
         {activeTab !== "preview" && (
@@ -743,6 +708,7 @@ function BlankTab({
               value={parametersSchema}
               onChange={setParametersSchema}
               placeholder="paramName"
+              allowedTypes={["string", "number", "boolean"]}
               error={parametersValidation.error}
               invalidRowIndexes={parametersValidation.invalidRowIndexes}
             />
@@ -763,6 +729,7 @@ function BlankTab({
               value={headersSchema}
               onChange={setHeadersSchema}
               placeholder="Header-Name"
+              allowedTypes={["string"]}
               error={headersValidation.error}
               invalidRowIndexes={headersValidation.invalidRowIndexes}
             />
@@ -864,6 +831,9 @@ function BlankTab({
         {activeTab === "preview" && (
           <JsonPreview
             querySchema={querySchema}
+            parametersSchema={parametersSchema}
+            headersSchema={headersSchema}
+            authSchema={authSchema}
             requestBodyFormat={requestBodyFormat}
             requestSchema={requestSchema}
             responseSchema={responseSchema}

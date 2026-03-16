@@ -12,12 +12,14 @@ interface AppLayoutProps {
   children: React.ReactNode;
   mainClassName?: string;
   sidebar?: AppSidebarContext;
+  headerActions?: React.ReactNode;
 }
 
 export function AppLayout({
   children,
   mainClassName,
   sidebar,
+  headerActions,
 }: AppLayoutProps) {
   const { data: user } = useMe();
   const { mutate: logout } = useLogout();
@@ -62,6 +64,13 @@ export function AppLayout({
                 API Contract
               </span>
             </Link>
+
+            {/* Center/right: optional page-level actions */}
+            {headerActions && (
+              <div className="flex items-center gap-1 ml-4">
+                {headerActions}
+              </div>
+            )}
 
             {/* Right: user + logout */}
             <div className="ml-auto flex items-center gap-2">

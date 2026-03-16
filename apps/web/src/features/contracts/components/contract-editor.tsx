@@ -410,8 +410,8 @@ export function ContractEditor({
 
       {/* ── Definition (always visible) ── */}
       <div className="flex-1 px-5 py-4 space-y-4">
-        {/* Method + Path */}
-        <section className="overflow-hidden rounded-md border border-border-subtle bg-surface font-mono shadow-brutal-sm">
+        {/* Method + Path — hidden when per-endpoint preview is active (SwaggerOperationPreview renders its own) */}
+        {activeDefinitionTab === "preview" ? null : <section className="overflow-hidden rounded-md border border-border-subtle bg-surface font-mono shadow-brutal-sm">
           <div className="border-b border-border-subtle bg-elevated px-4 py-3">
             <div className="flex flex-wrap items-stretch gap-2">
               <div className={cn(
@@ -435,7 +435,7 @@ export function ContractEditor({
               />
             </div>
           </div>
-        </section>
+        </section>}
 
         {/* Schema sub-tab strip — hidden when preview is active */}
         {activeDefinitionTab !== "preview" && (
@@ -497,6 +497,7 @@ export function ContractEditor({
               value={parametersSchema}
               onChange={setParametersSchema}
               placeholder="paramName"
+              allowedTypes={["string", "number", "boolean"]}
               error={parametersValidation.error}
               invalidRowIndexes={parametersValidation.invalidRowIndexes}
             />
@@ -517,6 +518,7 @@ export function ContractEditor({
               value={headersSchema}
               onChange={setHeadersSchema}
               placeholder="Header-Name"
+              allowedTypes={["string"]}
               error={headersValidation.error}
               invalidRowIndexes={headersValidation.invalidRowIndexes}
             />
@@ -620,6 +622,9 @@ export function ContractEditor({
         {activeDefinitionTab === "preview" && (
           <JsonPreview
             querySchema={querySchema}
+            parametersSchema={parametersSchema}
+            headersSchema={headersSchema}
+            authSchema={authSchema}
             requestBodyFormat={requestBodyFormat}
             requestSchema={requestSchema}
             responseSchema={responseSchema}

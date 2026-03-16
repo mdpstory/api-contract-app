@@ -1,4 +1,5 @@
 import * as React from "react"
+import { LayoutList, Code2, ChevronDown, ChevronsUpDown } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -6,6 +7,8 @@ import {
   type PreviewMode,
 } from "@/features/contracts/components/schema-live-preview"
 import { schemaToExample } from "@/features/contracts/lib/schema-preview"
+import { generateProjectOpenApiObject, toJson, toYaml } from "@/features/contracts/lib/openapi-gen"
+import { OpenApiCodePreview } from "@/features/contracts/components/openapi-code-preview"
 import { cn } from "@/lib/cn"
 import { useToast } from "@/lib/toast"
 import type {
@@ -15,6 +18,8 @@ import type {
   HttpMethod,
 } from "@repo/types"
 
+type ProjectPreviewView = "visual" | "code"
+
 interface SwaggerOperationPreviewProps {
   method: HttpMethod
   path: string
@@ -23,6 +28,10 @@ interface SwaggerOperationPreviewProps {
   requestSchema: ContractSchema
   responseSchema: ContractSchema
   status?: Contract["status"]
+  /** When true the card starts expanded; defaults to false (collapsed) */
+  defaultOpen?: boolean
+  /** Synced signal from parent expand/collapse all; null means no pending command */
+  allOpen?: boolean | null
 }
 
 interface SwaggerProjectPreviewProps {
@@ -122,15 +131,57 @@ function buildCurlSnippet({
   return lines.join(" \\\n+")
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
+// ─── Chevron indicator ────────────────────────────────────────────────────────
+
+function Chevron({ open }: { open: boolean }) {
   return (
-    <div className="flex items-center gap-2">
-      <span className="rounded-full border border-border-subtle bg-elevated px-2.5 py-1 font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-text-secondary">
-        {children}
-      </span>
-    </div>
+    <ChevronDown
+      size={12}
+      className={cn(
+        "shrink-0 text-text-muted transition-transform duration-200",
+        open ? "rotate-0" : "-rotate-90",
+      )}
+    />
   )
 }
+
+// ─── Collapsible section wrapper ──────────────────────────────────────────────
+// Used for the inner sections: Parameters, Query, Request, Response, Code Sample
+
+function CollapsibleSection({
+  label,
+  badge,
+  children,
+  defaultOpen = true,
+}: {
+  label: React.ReactNode
+  badge?: React.ReactNode
+  children: React.ReactNode
+  defaultOpen?: boolean
+}) {
+  const [open, setOpen] = React.useState(defaultOpen)
+
+  return (
+    <section className="space-y-3">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-2 text-left"
+      >
+        <div className="flex items-center gap-2 flex-1 flex-wrap">
+          <span className="rounded-full border border-border-subtle bg-elevated px-2.5 py-1 font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-text-secondary">
+            {label}
+          </span>
+          {badge}
+        </div>
+        <Chevron open={open} />
+      </button>
+      {open && children}
+    </section>
+  )
+}
+
+// ─── Panel ────────────────────────────────────────────────────────────────────
 
 function EmptyBox({ message }: { message: string }) {
   return (
@@ -295,8 +346,7 @@ function QuerySection({ querySchema }: { querySchema: ContractSchema }) {
   }
 
   return (
-    <section className="space-y-3">
-      <SectionLabel>Query</SectionLabel>
+    <CollapsibleSection label="Query">
       <div className="grid gap-4 xl:auto-rows-fr xl:grid-cols-2">
         <Panel label="Query Fields" stretch>
           <SchemaTable schema={querySchema} />
@@ -309,7 +359,7 @@ function QuerySection({ querySchema }: { querySchema: ContractSchema }) {
           onModeChange={setPreviewMode}
         />
       </div>
-    </section>
+    </CollapsibleSection>
   )
 }
 
@@ -317,12 +367,7 @@ function ResponseSection({ responseSchema }: { responseSchema: ContractSchema })
   const [previewMode, setPreviewMode] = React.useState<PreviewMode>("typescript")
 
   return (
-    <section className="space-y-3">
-      <div className="flex items-center gap-2 flex-wrap">
-        <SectionLabel>Responses</SectionLabel>
-        <Badge variant="approved">200 OK</Badge>
-      </div>
-
+    <CollapsibleSection label="Responses" badge={<Badge variant="approved">200 OK</Badge>}>
       <div className="grid gap-4 xl:auto-rows-fr xl:grid-cols-2">
         <Panel label="Response Schema" stretch>
           <SchemaTable schema={responseSchema} />
@@ -335,7 +380,7 @@ function ResponseSection({ responseSchema }: { responseSchema: ContractSchema })
           onModeChange={setPreviewMode}
         />
       </div>
-    </section>
+    </CollapsibleSection>
   )
 }
 
@@ -358,8 +403,7 @@ function RequestSection({
   }
 
   return (
-    <section className="space-y-3">
-      <SectionLabel>{hasBody ? "Request Body" : "Request Shape"}</SectionLabel>
+    <CollapsibleSection label={hasBody ? "Request Body" : "Request Shape"}>
       <div className="grid gap-4 xl:auto-rows-fr xl:grid-cols-2">
         <Panel label={hasBody ? (requestBodyFormat === "form-data" ? "Form Data Fields" : "Request Schema") : "Request Fields"} stretch>
           <SchemaTable schema={requestSchema} />
@@ -372,7 +416,7 @@ function RequestSection({
           onModeChange={setPreviewMode}
         />
       </div>
-    </section>
+    </CollapsibleSection>
   )
 }
 
@@ -384,60 +428,138 @@ export function SwaggerOperationPreview({
   requestSchema,
   responseSchema,
   status,
+  defaultOpen = false,
+  allOpen = null,
 }: SwaggerOperationPreviewProps) {
+  const [open, setOpen] = React.useState(defaultOpen)
+  const prevAllOpen = React.useRef<boolean | null>(null)
   const curlSnippet = buildCurlSnippet({ method, path, querySchema, requestBodyFormat, requestSchema })
+
+  React.useEffect(() => {
+    if (allOpen !== null && allOpen !== prevAllOpen.current) {
+      setOpen(allOpen)
+      prevAllOpen.current = allOpen
+    }
+  }, [allOpen])
 
   return (
     <article className="overflow-hidden rounded-md border border-border-subtle bg-surface shadow-brutal-sm">
-      <div className="border-b border-border-subtle bg-elevated px-4 py-3">
-        <div className="flex flex-wrap items-stretch gap-2">
-              <span
-                className={cn(
-                  "flex h-10 min-w-20 items-center justify-center rounded-sm px-3 text-center font-mono text-[11px] font-semibold uppercase tracking-[0.16em]",
-                  METHOD_COLORS[method]
-                )}
-              >
-                {method}
-              </span>
-            <code className="flex min-h-10 min-w-[220px] flex-1 items-center rounded-sm border border-border-subtle bg-base px-3 font-mono text-sm break-all text-text-primary">
-              {pathForDisplay(path)}
-            </code>
+      {/* ── Header — always visible, click to toggle ── */}
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-2 border-b border-border-subtle bg-elevated px-4 py-3 text-left transition-colors hover:bg-overlay"
+      >
+        <div className="flex flex-1 flex-wrap items-stretch gap-2">
+          <span
+            className={cn(
+              "flex h-10 min-w-20 items-center justify-center rounded-sm px-3 text-center font-mono text-[11px] font-semibold uppercase tracking-[0.16em]",
+              METHOD_COLORS[method]
+            )}
+          >
+            {method}
+          </span>
+          <code className="flex min-h-10 min-w-[220px] flex-1 items-center rounded-sm border border-border-subtle bg-base px-3 font-mono text-sm break-all text-text-primary">
+            {pathForDisplay(path)}
+          </code>
           {status && (
             <span className="flex h-10 items-center">
               <Badge variant={status === "approved" ? "approved" : "draft"}>{status}</Badge>
             </span>
           )}
         </div>
-      </div>
+        <Chevron open={open} />
+      </button>
 
-      <div className="space-y-6 p-4 md:p-5">
-        <section className="space-y-3">
-          <SectionLabel>Parameters</SectionLabel>
-          <Panel label="Path Parameters">
-            <ParametersTable path={path} />
-          </Panel>
-        </section>
+      {/* ── Body — collapsible ── */}
+      {open && (
+        <div className="space-y-6 p-4 md:p-5">
+          <CollapsibleSection label="Parameters">
+            <Panel label="Path Parameters">
+              <ParametersTable path={path} />
+            </Panel>
+          </CollapsibleSection>
 
-        <QuerySection querySchema={querySchema} />
+          <QuerySection querySchema={querySchema} />
 
-        <RequestSection method={method} querySchema={querySchema} requestBodyFormat={requestBodyFormat} requestSchema={requestSchema} />
+          <RequestSection
+            method={method}
+            querySchema={querySchema}
+            requestBodyFormat={requestBodyFormat}
+            requestSchema={requestSchema}
+          />
 
-        <ResponseSection responseSchema={responseSchema} />
+          <ResponseSection responseSchema={responseSchema} />
 
-        <section className="space-y-3">
-          <SectionLabel>Code Sample</SectionLabel>
-          <Panel label="cURL" action={<CopyButton value={curlSnippet} label="cURL" />}>
-            <pre className="max-w-full overflow-x-auto rounded-b-md bg-ink p-4 font-mono text-xs leading-relaxed text-text-primary">
-              {curlSnippet}
-            </pre>
-          </Panel>
-        </section>
-      </div>
+          <CollapsibleSection label="Code Sample">
+            <Panel label="cURL" action={<CopyButton value={curlSnippet} label="cURL" />}>
+              <pre className="max-w-full overflow-x-auto rounded-b-md bg-ink p-4 font-mono text-xs leading-relaxed text-text-primary">
+                {curlSnippet}
+              </pre>
+            </Panel>
+          </CollapsibleSection>
+        </div>
+      )}
     </article>
   )
 }
 
+const EMPTY_SCHEMA: ContractSchema = { fields: [] }
+
+// ─── Collapsible group section ─────────────────────────────────────────────────
+
+function GroupSection({
+  label,
+  count,
+  allOpen,
+  children,
+}: {
+  label: string
+  count: number
+  allOpen: boolean | null
+  children: React.ReactNode
+}) {
+  // Sync with the global expand/collapse all signal
+  const [open, setOpen] = React.useState(true)
+  const prevAllOpen = React.useRef<boolean | null>(null)
+
+  React.useEffect(() => {
+    if (allOpen !== null && allOpen !== prevAllOpen.current) {
+      setOpen(allOpen)
+      prevAllOpen.current = allOpen
+    }
+  }, [allOpen])
+
+  return (
+    <section className="space-y-4">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-3 border-b border-border-subtle pb-2 text-left"
+      >
+        <span className="rounded-full border border-border-subtle bg-elevated px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-text-secondary">
+          Group
+        </span>
+        <h3 className="flex-1 text-sm font-semibold tracking-tight text-text-primary">
+          {label}
+        </h3>
+        <span className="font-mono text-[11px] font-medium text-text-muted">
+          {count}
+        </span>
+        <Chevron open={open} />
+      </button>
+      {open && <div className="space-y-4">{children}</div>}
+    </section>
+  )
+}
+
 export function SwaggerProjectPreview({ contracts, groups }: SwaggerProjectPreviewProps) {
+  const [view, setView] = React.useState<ProjectPreviewView>("visual")
+  // null = no pending signal; true = expand all; false = collapse all
+  const [allOpen, setAllOpen] = React.useState<boolean | null>(null)
+  // Track whether all endpoints are currently expanded to decide button label
+  const [endpointsOpen, setEndpointsOpen] = React.useState(false)
+
   const groupById = new Map(groups.map((group) => [group.id, group]))
   const groupedContracts = groups.map((group) => ({
     group,
@@ -460,9 +582,18 @@ export function SwaggerProjectPreview({ contracts, groups }: SwaggerProjectPrevi
     )
   }
 
+  function handleToggleAll() {
+    const next = !endpointsOpen
+    setEndpointsOpen(next)
+    setAllOpen(next)
+    // Reset signal after a tick so future individual toggles don't re-trigger
+    setTimeout(() => setAllOpen(null), 0)
+  }
+
   return (
     <div className="space-y-6">
-      <div className="rounded-lg border border-border-subtle bg-surface px-5 py-5 shadow-brutal">
+      {/* Header + view toggle */}
+      <div className="rounded-lg border border-border-subtle bg-surface px-5 py-4 shadow-brutal">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-text-muted">
@@ -472,34 +603,95 @@ export function SwaggerProjectPreview({ contracts, groups }: SwaggerProjectPrevi
               Project API Docs
             </h2>
           </div>
-          <div className="rounded-md border border-border-subtle bg-elevated px-4 py-2 text-right shadow-brutal-sm">
-            <p className="text-[10px] uppercase tracking-[0.15em] text-text-muted">
-              Endpoints
-            </p>
-            <p className="font-mono text-xl font-semibold text-text-primary">{contracts.length}</p>
+          <div className="flex items-center gap-3">
+            {/* Expand / Collapse all endpoints — only in visual view */}
+            {view === "visual" && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleToggleAll}
+                className="gap-1.5 font-mono text-xs text-text-muted hover:text-text-primary"
+              >
+                <ChevronsUpDown size={12} />
+                {endpointsOpen ? "Collapse all" : "Expand all"}
+              </Button>
+            )}
+
+            {/* Visual / Code toggle */}
+            <div className="flex items-center gap-0 border-b border-border-subtle">
+              {(
+                [
+                  { key: "visual", label: "Visual", icon: LayoutList },
+                  { key: "code",   label: "Code",   icon: Code2 },
+                ] as const
+              ).map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setView(key)}
+                  className={cn(
+                    "relative flex items-center gap-1.5 px-4 py-2 font-mono text-xs font-medium transition-colors",
+                    view === key ? "text-text-primary" : "text-text-muted hover:text-text-secondary",
+                  )}
+                >
+                  <Icon size={11} />
+                  {label}
+                  {view === key && (
+                    <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-accent" />
+                  )}
+                </button>
+              ))}
+            </div>
+            <div className="rounded-md border border-border-subtle bg-elevated px-4 py-2 text-right shadow-brutal-sm">
+              <p className="text-[10px] uppercase tracking-[0.15em] text-text-muted">Endpoints</p>
+              <p className="font-mono text-xl font-semibold text-text-primary">{contracts.length}</p>
+            </div>
           </div>
         </div>
       </div>
 
-      {groupedContracts.map(({ group, contracts: groupContracts }) => {
-        if (groupContracts.length === 0) return null
+      {/* Code view — single combined OpenAPI document */}
+      {view === "code" && (
+        <ProjectCodePreview contracts={contracts} />
+      )}
 
-        return (
-          <section key={group.id} className="space-y-4">
-            <div className="flex items-center gap-3 border-b border-border-subtle pb-2">
-              <span className="rounded-full border border-border-subtle bg-elevated px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-text-secondary">
-                Group
-              </span>
-              <h3 className="text-sm font-semibold tracking-tight text-text-primary">
-                {group.name}
-              </h3>
-              <span className="font-mono text-[11px] font-medium text-text-muted">
-                {groupContracts.length}
-              </span>
-            </div>
+      {/* Visual view — per-contract cards grouped */}
+      {view === "visual" && (
+        <>
+          {groupedContracts.map(({ group, contracts: groupContracts }) => {
+            if (groupContracts.length === 0) return null
+            return (
+              <GroupSection
+                key={group.id}
+                label={group.name}
+                count={groupContracts.length}
+                allOpen={allOpen}
+              >
+                {groupContracts.map((contract) => (
+                  <SwaggerOperationPreview
+                    key={contract.id}
+                    method={contract.method}
+                    path={contract.path}
+                    querySchema={contract.querySchema}
+                    requestBodyFormat={contract.requestBodyFormat}
+                    requestSchema={contract.requestSchema}
+                    responseSchema={contract.responseSchema}
+                    status={contract.status}
+                    allOpen={allOpen}
+                  />
+                ))}
+              </GroupSection>
+            )
+          })}
 
-            <div className="space-y-4">
-              {groupContracts.map((contract) => (
+          {ungroupedContracts.length > 0 && (
+            <GroupSection
+              label="Ungrouped"
+              count={ungroupedContracts.length}
+              allOpen={allOpen}
+            >
+              {ungroupedContracts.map((contract) => (
                 <SwaggerOperationPreview
                   key={contract.id}
                   method={contract.method}
@@ -509,43 +701,52 @@ export function SwaggerProjectPreview({ contracts, groups }: SwaggerProjectPrevi
                   requestSchema={contract.requestSchema}
                   responseSchema={contract.responseSchema}
                   status={contract.status}
+                  allOpen={allOpen}
                 />
               ))}
-            </div>
-          </section>
-        )
-      })}
-
-      {ungroupedContracts.length > 0 && (
-        <section className="space-y-4">
-          <div className="flex items-center gap-3 border-b border-border-subtle pb-2">
-            <span className="rounded-full border border-border-subtle bg-elevated px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-text-secondary">
-              Group
-            </span>
-            <h3 className="text-sm font-semibold tracking-tight text-text-primary">
-              Ungrouped
-            </h3>
-            <span className="font-mono text-[11px] font-medium text-text-muted">
-              {ungroupedContracts.length}
-            </span>
-          </div>
-
-          <div className="space-y-4">
-            {ungroupedContracts.map((contract) => (
-              <SwaggerOperationPreview
-                key={contract.id}
-                method={contract.method}
-                path={contract.path}
-                querySchema={contract.querySchema}
-                requestBodyFormat={contract.requestBodyFormat}
-                requestSchema={contract.requestSchema}
-                responseSchema={contract.responseSchema}
-                status={contract.status}
-              />
-            ))}
-          </div>
-        </section>
+            </GroupSection>
+          )}
+        </>
       )}
     </div>
+  )
+}
+
+// ─── Project-wide combined code preview ───────────────────────────────────────
+
+function ProjectCodePreview({ contracts }: { contracts: Contract[] }) {
+  const inputs = contracts.map((c) => ({
+    method: c.method,
+    path: c.path,
+    querySchema: c.querySchema,
+    parametersSchema: EMPTY_SCHEMA,
+    headersSchema: EMPTY_SCHEMA,
+    authSchema: EMPTY_SCHEMA,
+    requestBodyFormat: c.requestBodyFormat,
+    requestSchema: c.requestSchema,
+    responseSchema: c.responseSchema,
+  }))
+
+  const projectObj = React.useMemo(
+    () => generateProjectOpenApiObject(inputs, "Project API Docs"),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [contracts]
+  )
+
+  return (
+    <OpenApiCodePreview
+      // Pass first contract's shape as props — the component will use projectObj override
+      method={contracts[0]?.method ?? "GET"}
+      path={contracts[0]?.path ?? "/"}
+      querySchema={EMPTY_SCHEMA}
+      parametersSchema={EMPTY_SCHEMA}
+      headersSchema={EMPTY_SCHEMA}
+      authSchema={EMPTY_SCHEMA}
+      requestBodyFormat="json"
+      requestSchema={EMPTY_SCHEMA}
+      responseSchema={EMPTY_SCHEMA}
+      overrideObj={projectObj}
+      exportFilename="project-openapi"
+    />
   )
 }

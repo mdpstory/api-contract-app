@@ -19,6 +19,7 @@ interface SchemaEditorProps {
   error?: string | null
   invalidRowIndexes?: number[]
   disabled?: boolean
+  allowedTypes?: FieldType[]
 }
 
 export function SchemaEditor({
@@ -28,6 +29,7 @@ export function SchemaEditor({
   error,
   invalidRowIndexes = [],
   disabled,
+  allowedTypes = FIELD_TYPES,
 }: SchemaEditorProps) {
   const [draggingIndex, setDraggingIndex] = React.useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = React.useState<number | null>(null)
@@ -193,7 +195,7 @@ export function SchemaEditor({
                     invalidRows.has(i) && "text-error"
                   )}
                 >
-                  {FIELD_TYPES.map((t) => (
+                  {allowedTypes.map((t) => (
                     <option key={t} value={t}>
                       {t}
                     </option>
